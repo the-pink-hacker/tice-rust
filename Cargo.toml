@@ -1,0 +1,16 @@
+[workspace]
+resolver = "3"
+members = [
+    "ti-asset-builder",
+]
+
+[workspace.package]
+authors = [ "ThePinkHacker" ]
+license = "GPL-3.0-or-later"
+repository = "https://github.thepinkhacker.com/tice-rust"
+edition = "2024"
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+
+[workspace.dependencies]
