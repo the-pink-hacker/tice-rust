@@ -1,12 +1,16 @@
 [package]
 name = "ti-asset-builder"
 version = "0.1.0"
+description = "A tool to package sprites and fonts for TI-84 Plus CE graphing calculators"
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
 edition.workspace = true
 
 [dependencies]
+anyhow.workspace = true
+clap = { workspace = true, features = ["derive"] }
+serde = { workspace = true, features = ["derive"] }
 
 [lints]
 workspace = true
