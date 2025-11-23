@@ -3,20 +3,26 @@ use std::path::PathBuf;
 use anyhow::Context;
 use clap::{Args, Parser, Subcommand};
 
+use crate::output::OutputType;
+
 #[derive(Debug, Args, Clone)]
 pub struct CliFontPackCommand {
     /// The fontpack defintion file
-    definition: PathBuf,
+    #[clap(short, long)]
+    pub definition: PathBuf,
     /// The folder to output final asset
-    output: PathBuf,
+    #[clap(short, long)]
+    pub output: PathBuf,
+    #[clap(short = 't', long)]
+    pub output_type: OutputType,
 }
 
 #[derive(Debug, Args, Clone)]
 pub struct CliSpriteCommand {
     /// The sprite definition file
-    definition: PathBuf,
+    pub definition: PathBuf,
     /// The folder to output final asset
-    output: PathBuf,
+    pub output: PathBuf,
 }
 
 #[derive(Debug, Subcommand, Clone)]

@@ -1,5 +1,9 @@
+#![feature(normalize_lexically)]
+
 mod cli;
 mod font;
+mod output;
+mod path;
 mod sprite;
 
 fn main() -> anyhow::Result<()> {

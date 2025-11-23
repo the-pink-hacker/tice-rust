@@ -9,8 +9,14 @@ edition.workspace = true
 
 [dependencies]
 anyhow.workspace = true
+ascii = { workspace = true, features = ["serde"] }
 clap = { workspace = true, features = ["derive"] }
 serde = { workspace = true, features = ["derive"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+toml.workspace = true
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+serde_test.workspace = true
