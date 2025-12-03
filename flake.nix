@@ -35,6 +35,11 @@
                 overlays = [(import rust-overlay)];
                 config.allowUnfree = true;
             };
+            rust = pkgs.rust-bin.selectLatestNightlyWith (toolchain: toolchain.default);
+            rustPlatform = pkgs.makeRustPlatform {
+                cargo = rust;
+                rustc = rust;
+            };
         in {
             packages = {
                 # https://gist.github.com/caseyavila/05862db1fcc8b4544bd9dcc9ecc444b9#file-default-nix
@@ -65,15 +70,33 @@
                         glib
                     ];
                 };
+                ti-asset-builder = let
+                    cargoToml = lib.importTOML ./ti-asset-builder/Cargo.toml;
+                in
+                    rustPlatform.buildRustPackage {
+                        pname = "ti-asset-builder";
+                        src = pkgs.nix-gitignore.gitignoreSource [] ./.;
+                        inherit (cargoToml.package) version;
+                        cargoLock.lockFile = ./Cargo.lock;
+                        meta = {
+                            description = "Rust tools for the TI-84 Plus CE graphing calculator";
+                            license = lib.licenses.gpl3;
+                            platforms = lib.platforms.unix;
+                            mainProgram = "ti-asset-builder";
+                        };
+                    };
+                default = self.packages.${system}.ti-asset-builder;
             };
             formatter = pkgs.alejandra;
             devShells = {
                 default = pkgs.mkShell {
+                    inputsFrom = [self.packages.${system}.ti-asset-builder];
                     packages = with pkgs; [
                         self.packages.${system}.tilp
                         (rust-bin.selectLatestNightlyWith (toolchain:
                             toolchain.default.override {
                                 extensions = [
+                                    # For debug purposes
                                     "rust-analyzer"
                                     "rust-src"
                                 ];
@@ -81,5 +104,6 @@
                     ];
                 };
             };
+            overlays.default = final: prev: {inherit (self.packages.${prev.system}) ti-asset-builder;};
         });
 }
