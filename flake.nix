@@ -18,19 +18,19 @@
         rust-overlay,
         ...
     }: let
-      inherit (nixpkgs) lib;
-      systems = [
-          "x86_64-linux"
-          "aarch64-linux"
-          "x86_64-darwin"
-          "aarch64-darwin"
-      ];
-      pkgsFor = lib.genAttrs systems (system:
-          import nixpkgs {
-              localSystem.system = system;
-              overlays = [(import rust-overlay)];
-              config.allowUnfree = true;
-          });
+        inherit (nixpkgs) lib;
+        systems = [
+            "x86_64-linux"
+            "aarch64-linux"
+            "x86_64-darwin"
+            "aarch64-darwin"
+        ];
+        pkgsFor = lib.genAttrs systems (system:
+            import nixpkgs {
+                localSystem.system = system;
+                overlays = [(import rust-overlay)];
+                config.allowUnfree = true;
+            });
     in {
         packages = lib.mapAttrs (system: pkgs: {
             # https://gist.github.com/caseyavila/05862db1fcc8b4544bd9dcc9ecc444b9#file-default-nix
@@ -41,11 +41,11 @@
                     sha256 = "1mww2pjzvlbnjp2z57qf465nilfjmqi451marhc9ikmvzpvk9a3b";
                 };
                 postUnpack = ''
-                	sed -i -e '/AC_PATH_KDE/d' tilp2-1.18/configure.ac || die
-                   sed -i \
-                       -e 's/@[^@]*\(KDE\|QT\|KIO\)[^@]*@//g' \
-                       -e 's/@X_LDFLAGS@//g' \
-                       tilp2-1.18/src/Makefile.am || die
+                    sed -i -e '/AC_PATH_KDE/d' tilp2-1.18/configure.ac || die
+                      sed -i \
+                          -e 's/@[^@]*\(KDE\|QT\|KIO\)[^@]*@//g' \
+                          -e 's/@X_LDFLAGS@//g' \
+                          tilp2-1.18/src/Makefile.am || die
                 '';
                 nativeBuildInputs = with pkgs; [
                     autoreconfHook
@@ -63,6 +63,7 @@
             };
         })
         pkgsFor;
+        formatter = lib.mapAttrs (_: pkgs: pkgs.alejandra) pkgsFor;
         devShells = lib.mapAttrs (system: pkgs: {
             default = pkgs.mkShell {
                 packages = with pkgs; [
