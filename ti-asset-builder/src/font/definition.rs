@@ -120,9 +120,7 @@ pub struct FontStyle {
     /// If both italic and oblique are set, then assume there’s no difference between oblique and
     /// italic styles.
     pub italic: bool,
-    /// Monospaced font.
-    ///
-    /// This is not enforced; a variable-width font can claim to be monospaced!
+    /// Monospaced font. This is not enforced; a variable-width font can claim to be monospaced!
     pub monospaced: bool,
 }
 

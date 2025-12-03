@@ -1,6 +1,7 @@
 use std::path::Path;
 
 use anyhow::Context;
+use log::debug;
 use serseg::prelude::*;
 
 use crate::font::{
@@ -46,6 +47,7 @@ fn add_font_sectors(
             );
             glyph_bitmaps.push((glyph_bitmap, glyph_index));
         } else {
+            debug!("Glyph {glyph_index} of font {font_index} is unset and will be defaulted.");
             widths_builder = widths_builder.u8(0);
             // TODO: Add default glyphs
             bitmap_table_builder = bitmap_table_builder.null_16();
@@ -152,6 +154,8 @@ fn generate_serial_builder(
     for (font_index, (font, font_glyphs)) in fonts.into_iter().enumerate() {
         builder = add_font_sectors(builder, font, font_index, font_glyphs)?;
     }
+
+    debug!("{builder:?}");
 
     Ok(builder)
 }
