@@ -5,7 +5,7 @@ use log::debug;
 use tokio::io::{AsyncSeek, AsyncWrite, AsyncWriteExt};
 use u24::u24;
 
-use crate::{prelude::*, tracker::SerialTracker};
+use crate::{field::SerialField, tracker::SerialTracker};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SerialBuilder<S: Hash + Eq + Clone + std::fmt::Debug> {
@@ -132,13 +132,7 @@ impl<S: Hash + Eq + Clone + std::fmt::Debug> SerialSectorBuilder<S> {
         })
     }
 
-    pub fn dynamic_u16_chunk<const N: usize>(
-        self,
-        origin: S,
-        sector: S,
-        index: usize,
-        scale: usize,
-    ) -> Self {
+    pub fn dynamic_u16_chunk(self, origin: S, sector: S, index: usize, scale: usize) -> Self {
         self.field(SerialField::Dynamic {
             origin,
             sector,
@@ -158,13 +152,7 @@ impl<S: Hash + Eq + Clone + std::fmt::Debug> SerialSectorBuilder<S> {
         })
     }
 
-    pub fn dynamic_u24_chunk<const N: usize>(
-        self,
-        origin: S,
-        sector: S,
-        index: usize,
-        scale: usize,
-    ) -> Self {
+    pub fn dynamic_u24_chunk(self, origin: S, sector: S, index: usize, scale: usize) -> Self {
         self.field(SerialField::Dynamic {
             origin,
             sector,
