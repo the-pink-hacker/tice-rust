@@ -1,7 +1,7 @@
 {
     description = "Rust tools for the TI-84 Plus CE graphing calculator";
     inputs = {
-        nixpkgs.url = "github:nixos/nixpkgs/nixos-24.11";
+        nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
         toolchain = {
             url = "github:myclevorname/flake";
             inputs.nixpkgs.follows = "nixpkgs";
