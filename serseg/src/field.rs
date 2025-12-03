@@ -7,7 +7,7 @@ use u24::u24;
 
 use crate::{prelude::*, tracker::SerialTracker};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SerialField<S: Hash + Eq> {
     /// Refences data that isn't know yet
     Dynamic {
@@ -16,6 +16,7 @@ pub enum SerialField<S: Hash + Eq> {
         /// Index from begining of first sector
         index: usize,
         scale: usize,
+        bytes: usize,
     },
     /// File to be loaded on build
     External {
@@ -30,6 +31,7 @@ pub enum SerialField<S: Hash + Eq> {
     U64(u64),
     /// Variable width null terminated string
     String(String),
+    Bytes(Vec<u8>),
     /// Fills data up to offset from origin
     /// Errors if past origin
     Fill {
@@ -52,12 +54,14 @@ impl<S: Hash + Eq + Clone + std::fmt::Debug> SerialField<S> {
                 index: _,
                 origin: _,
                 scale: _,
-            }
-            | Self::U24(_) => Ok(3),
+                bytes,
+            } => Ok(*bytes),
+            Self::U24(_) => Ok(3),
             Self::U8(_) => Ok(1),
             Self::U16(_) => Ok(2),
             Self::U32(_) => Ok(4),
             Self::U64(_) => Ok(8),
+            Self::Bytes(value) => Ok(value.len()),
             Self::External { path: _, size } => Ok(*size),
             Self::Fill { origin, fill } => {
                 let origin_position = tracker.offset_from_origin(origin)?;
@@ -77,11 +81,13 @@ impl<S: Hash + Eq + Clone + std::fmt::Debug> SerialField<S> {
                 buffer.write_all(value.as_bytes()).await?;
                 buffer.write_u8(0).await?;
             }
+            Self::Bytes(value) => buffer.write_all(value).await?,
             Self::Dynamic {
                 sector,
                 index,
                 origin,
                 scale,
+                bytes,
             } => {
                 let pointer =
                     tracker.offset_field_from_sector(origin, sector, *index, sectors, tracker)?;
@@ -95,15 +101,31 @@ impl<S: Hash + Eq + Clone + std::fmt::Debug> SerialField<S> {
                     );
                 }
 
-                let pointer =
-                    u24::checked_from_u32((pointer / scale) as u32).with_context(|| {
-                        format!(
-                            "Pointer exceeds 24-bit limit: {} bytes > {} bytes",
-                            pointer,
-                            u24::MAX
-                        )
-                    })?;
-                buffer.write_all(&pointer.to_le_bytes()).await?;
+                match bytes {
+                    2 => {
+                        let pointer = u16::try_from(pointer / scale).with_context(|| {
+                            format!(
+                                "Pointer exceeds 16-bit limit: {} bytes > {} bytes",
+                                pointer,
+                                u16::MAX
+                            )
+                        })?;
+                        buffer.write_u16_le(pointer).await?;
+                    }
+                    3 => {
+                        let pointer = u24::checked_from_u32((pointer / scale) as u32)
+                            .with_context(|| {
+                                format!(
+                                    "Pointer exceeds 24-bit limit: {} bytes > {} bytes",
+                                    pointer,
+                                    u24::MAX
+                                )
+                            })?
+                            .to_le_bytes();
+                        buffer.write_all(&pointer).await?;
+                    }
+                    _ => bail!("Unsupported dynamic pointer; length {bytes} is unsupported"),
+                }
             }
             Self::U8(value) => {
                 buffer.write_u8(*value).await?;

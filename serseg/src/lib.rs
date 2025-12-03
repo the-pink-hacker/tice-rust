@@ -65,8 +65,8 @@ mod tests {
             .sector(
                 ExampleSectorKey::Second,
                 SectorBuilder::default()
-                    .dynamic(ExampleSectorKey::Second, ExampleSectorKey::Third, 0)
-                    .dynamic(ExampleSectorKey::Second, ExampleSectorKey::Third, 1),
+                    .dynamic_u24(ExampleSectorKey::Second, ExampleSectorKey::Third, 0)
+                    .dynamic_u24(ExampleSectorKey::Second, ExampleSectorKey::Third, 1),
             )
             .sector(
                 ExampleSectorKey::Third,

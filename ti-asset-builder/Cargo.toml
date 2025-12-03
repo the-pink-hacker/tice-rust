@@ -11,8 +11,12 @@ edition.workspace = true
 anyhow.workspace = true
 ascii = { workspace = true, features = ["serde"] }
 clap = { workspace = true, features = ["derive"] }
+env_logger.workspace = true
+image = { version = "0.25.9", default-features = false, features = ["png"] }
+log = { workspace = true, features = ["max_level_trace", "release_max_level_warn"] }
 serde = { workspace = true, features = ["derive"] }
-tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+serseg.workspace = true
+tokio = { workspace = true, features = ["fs", "macros", "rt-multi-thread"] }
 toml.workspace = true
 
 [lints]

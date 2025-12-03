@@ -7,7 +7,7 @@ use u24::u24;
 
 use crate::{prelude::*, tracker::SerialTracker};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SerialBuilder<S: Hash + Eq + Clone + std::fmt::Debug> {
     sectors: IndexMap<S, SerialSectorBuilder<S>>,
 }
@@ -22,7 +22,7 @@ impl<S: Hash + Eq + Clone + std::fmt::Debug> Default for SerialBuilder<S> {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SerialSectorBuilder<S: Hash + Eq> {
     pub(crate) fields: Vec<SerialField<S>>,
 }
@@ -74,6 +74,10 @@ impl<S: Hash + Eq + Clone + std::fmt::Debug> SerialSectorBuilder<S> {
         self.field(SerialField::String(value.into()))
     }
 
+    pub fn bytes(self, value: impl IntoIterator<Item = u8>) -> Self {
+        self.field(SerialField::Bytes(value.into_iter().collect()))
+    }
+
     pub fn u8(self, value: impl Into<u8>) -> Self {
         self.field(SerialField::U8(value.into()))
     }
@@ -110,21 +114,63 @@ impl<S: Hash + Eq + Clone + std::fmt::Debug> SerialSectorBuilder<S> {
         self.field(SerialField::U64(value.into() as u64))
     }
 
-    pub fn dynamic(self, origin: S, sector: S, index: usize) -> Self {
+    pub fn null_16(self) -> Self {
+        self.field(SerialField::U16(0))
+    }
+
+    pub fn null_24(self) -> Self {
+        self.field(SerialField::U24(u24::from_le_bytes([0, 0, 0])))
+    }
+
+    pub fn dynamic_u16(self, origin: S, sector: S, index: usize) -> Self {
         self.field(SerialField::Dynamic {
             origin,
             sector,
             index,
             scale: 1,
+            bytes: 2,
         })
     }
 
-    pub fn dynamic_chunk<const N: usize>(self, origin: S, sector: S, index: usize) -> Self {
+    pub fn dynamic_u16_chunk<const N: usize>(
+        self,
+        origin: S,
+        sector: S,
+        index: usize,
+        scale: usize,
+    ) -> Self {
         self.field(SerialField::Dynamic {
             origin,
             sector,
             index,
-            scale: N,
+            scale,
+            bytes: 2,
+        })
+    }
+
+    pub fn dynamic_u24(self, origin: S, sector: S, index: usize) -> Self {
+        self.field(SerialField::Dynamic {
+            origin,
+            sector,
+            index,
+            scale: 1,
+            bytes: 3,
+        })
+    }
+
+    pub fn dynamic_u24_chunk<const N: usize>(
+        self,
+        origin: S,
+        sector: S,
+        index: usize,
+        scale: usize,
+    ) -> Self {
+        self.field(SerialField::Dynamic {
+            origin,
+            sector,
+            index,
+            scale,
+            bytes: 3,
         })
     }
 

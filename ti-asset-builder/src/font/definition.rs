@@ -41,12 +41,12 @@ pub struct FontPackMetadata {
     pub version: Option<String>,
     /// Suggested values: “ASCII” “TIOS” “ISO-8859-1” “Windows 1252” “Calculator 1252”.
     #[serde(default = "FontPackMetadata::default_code_page")]
-    pub code_page: String,
+    pub code_page: Option<String>,
 }
 
 impl FontPackMetadata {
-    fn default_code_page() -> String {
-        DEFAULT_CODE_PAGE.to_string()
+    fn default_code_page() -> Option<String> {
+        Some(DEFAULT_CODE_PAGE.to_string())
     }
 }
 
@@ -104,6 +104,12 @@ pub enum FontWeight {
     Black = 0xF0,
 }
 
+impl From<FontWeight> for u8 {
+    fn from(value: FontWeight) -> Self {
+        value as u8
+    }
+}
+
 #[derive(Debug, Clone, Copy, Deserialize, Default, PartialEq, Eq)]
 #[serde(default)]
 pub struct FontStyle {
@@ -120,6 +126,30 @@ pub struct FontStyle {
     pub monospaced: bool,
 }
 
+impl From<FontStyle> for u8 {
+    fn from(value: FontStyle) -> Self {
+        let mut output = 0;
+
+        if value.serif {
+            output |= 0b0000_0001;
+        }
+
+        if value.oblique {
+            output |= 0b0000_0010;
+        }
+
+        if value.italic {
+            output |= 0b0000_0100;
+        }
+
+        if value.monospaced {
+            output |= 0b0000_1000;
+        }
+
+        output
+    }
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct FontGlyph {
     pub index: GlyphIndex,
@@ -128,11 +158,20 @@ pub struct FontGlyph {
 }
 
 /// Where a glyph is mapped in the code page.
-#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
 #[serde(untagged)]
 pub enum GlyphIndex {
     Number(u8),
     Char(AsciiChar),
+}
+
+impl From<GlyphIndex> for u8 {
+    fn from(value: GlyphIndex) -> Self {
+        match value {
+            GlyphIndex::Number(value) => value,
+            GlyphIndex::Char(value) => value as u8,
+        }
+    }
 }
 
 #[cfg(test)]
