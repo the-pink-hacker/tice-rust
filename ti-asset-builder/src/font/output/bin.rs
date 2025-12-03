@@ -1,3 +1,6 @@
+use std::path::Path;
+
+use anyhow::Context;
 use serseg::prelude::*;
 
 use crate::font::{
@@ -154,10 +157,14 @@ fn generate_serial_builder(
 }
 
 pub async fn build(
+    output: &Path,
     pack: FontPackDefinition,
     fonts: Vec<(FontDefinition, FontGlyphs)>,
 ) -> anyhow::Result<()> {
-    let mut buffer = std::io::Cursor::new(Vec::new());
+    let file = tokio::fs::File::create(output)
+        .await
+        .with_context(|| format!("Failed to open output font file: {output:?}"))?;
+    let mut buffer = tokio::io::BufWriter::new(file);
     generate_serial_builder(pack, fonts)?
         .build(&mut buffer)
         .await?;

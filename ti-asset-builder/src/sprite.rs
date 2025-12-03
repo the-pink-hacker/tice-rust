@@ -112,9 +112,9 @@ impl RawImage {
         let (width, height) = self.image.dimensions();
         let pixels = self
             .image
-            .into_luma8()
+            .into_luma_alpha8()
             .pixels()
-            .map(|x| ColorMonochrome(x.0[0] != 0))
+            .map(|pixel| ColorMonochrome(pixel.0[1] != 0))
             .collect();
 
         (width, height, pixels)
@@ -122,5 +122,5 @@ impl RawImage {
 }
 
 pub async fn build(command: CliSpriteCommand) -> anyhow::Result<()> {
-    Ok(())
+    todo!()
 }

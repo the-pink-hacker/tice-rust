@@ -15,6 +15,7 @@ use crate::{
         FontDefinition, FontDefinitionWrapper, FontGlyph, FontPackDefinition,
         FontPackDefinitionWrapper,
     },
+    output::OutputType,
     path::PathExt,
     sprite::{ColorMonochrome, RawImage},
 };
@@ -85,7 +86,8 @@ impl FontGlyphs {
     }
 
     fn glyph_count(&self) -> u8 {
-        (self.last_glyph - self.first_glyph) + 1
+        // Saturating since a count of 0 is 256
+        (self.last_glyph - self.first_glyph).saturating_add(1)
     }
 }
 
@@ -146,9 +148,11 @@ pub async fn build(command: CliFontPackCommand) -> anyhow::Result<()> {
         fonts.push((font, font_glyphs));
     }
 
-    output::bin::build(pack_definition, fonts).await?;
-
-    Ok(())
+    match command.output_type {
+        OutputType::Assembly => todo!(),
+        OutputType::Binary => output::bin::build(&command.output, pack_definition, fonts).await,
+        OutputType::C => todo!(),
+    }
 }
 
 #[cfg(test)]
