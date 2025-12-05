@@ -4,7 +4,7 @@
         nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
         flake-utils.url = "github:numtide/flake-utils";
         toolchain = {
-            url = "github:myclevorname/flake";
+            url = "github:the-pink-hacker/ce-toolchain-nix";
             inputs = {
                 nixpkgs.follows = "nixpkgs";
                 flake-utils.follows = "flake-utils";
