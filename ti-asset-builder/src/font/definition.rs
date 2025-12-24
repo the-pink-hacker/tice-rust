@@ -22,31 +22,33 @@ pub struct FontPackDefinition {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(default)]
 pub struct FontPackMetadata {
     /// A **short**, human-readable typeface name, such as "Times".
-    #[serde(default)]
-    pub family_name: Option<String>,
+    pub family_name: String,
     /// A **short** string naming the typeface designer.
-    #[serde(default)]
-    pub author: Option<String>,
+    pub author: String,
     /// A **short** copyright claim.
-    #[serde(default)]
-    pub pseudocopyright: Option<String>,
+    pub pseudocopyright: String,
     /// A **brief** description of the font.
-    #[serde(default)]
-    pub description: Option<String>,
+    pub description: String,
     /// This is a `String`, so while this should be something like `"1.0.0.0"`. It could also be
     /// something like `"1 June 2019"`, or even `"Hahaha versioning is overrated!"`
-    #[serde(default)]
-    pub version: Option<String>,
+    pub version: String,
     /// Suggested values: “ASCII” “TIOS” “ISO-8859-1” “Windows 1252” “Calculator 1252”.
-    #[serde(default = "FontPackMetadata::default_code_page")]
-    pub code_page: Option<String>,
+    pub code_page: String,
 }
 
-impl FontPackMetadata {
-    fn default_code_page() -> Option<String> {
-        Some(DEFAULT_CODE_PAGE.to_string())
+impl Default for FontPackMetadata {
+    fn default() -> Self {
+        Self {
+            family_name: String::new(),
+            author: String::new(),
+            pseudocopyright: String::new(),
+            description: String::new(),
+            version: String::new(),
+            code_page: DEFAULT_CODE_PAGE.to_string(),
+        }
     }
 }
 

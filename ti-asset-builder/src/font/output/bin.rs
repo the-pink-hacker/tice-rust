@@ -130,8 +130,10 @@ fn generate_serial_builder(
     ];
 
     // Add each optional string's pointer and data. If the string is `None`, null will be written.
-    for string in strings {
-        if let Some(text) = string {
+    for text in strings {
+        if text.is_empty() {
+            metadata_builder = metadata_builder.null_24();
+        } else {
             metadata_builder = metadata_builder.dynamic_u24(
                 SectorId::Header,
                 SectorId::MetadataStrings,
@@ -139,8 +141,6 @@ fn generate_serial_builder(
             );
             metadata_string_builder = metadata_string_builder.string(text);
             string_index += 1;
-        } else {
-            metadata_builder = metadata_builder.null_24();
         }
     }
 
@@ -188,12 +188,10 @@ mod tests {
     async fn generate_example() {
         let pack = FontPackDefinition {
             metadata: FontPackMetadata {
-                family_name: Some("Family Name".to_string()),
-                author: None,
-                pseudocopyright: None,
-                description: Some("Description".to_string()),
-                version: None,
-                code_page: Some("ASCII".to_string()),
+                family_name: "Family Name".to_string(),
+                description: "Description".to_string(),
+                code_page: "ASCII".to_string(),
+                ..Default::default()
             },
             fonts: vec!["test".into()],
         };
