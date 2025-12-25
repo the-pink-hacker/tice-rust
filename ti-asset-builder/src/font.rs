@@ -63,7 +63,6 @@ impl FontGlyphs {
                 row_pixels.chunks(u8::BITS as usize).map(|pixels| {
                     pixels
                         .iter()
-                        .rev()
                         .enumerate()
                         // Filter empty pixels
                         .flat_map(
@@ -71,7 +70,7 @@ impl FontGlyphs {
                                 if color.into() { Some(byte_index) } else { None }
                             },
                         )
-                        .fold(0, |byte, byte_index| byte | (1 << byte_index))
+                        .fold(0, |byte, byte_index| byte | (1 << (7 - byte_index)))
                 })
             })
             .collect()
@@ -194,7 +193,7 @@ mod tests {
             .map(ColorMonochrome::from)
             .collect(),
         );
-        let expected = [0b0001_0101, 0b0010_1010, 0b0011_1000];
+        let expected = [0b1010_1000, 0b0101_0100, 0b0001_1100];
         assert_eq!(bytes, expected);
     }
 
@@ -213,13 +212,13 @@ mod tests {
         );
         let expected = [
             // Row 1
-            0b0101_0101,
-            0b0000_0001,
-            // Row 2
             0b1010_1010,
+            0b1000_0000,
+            // Row 2
+            0b0101_0101,
             0b0000_0000,
             // Row 3
-            0b1111_1000,
+            0b0001_1111,
             0b0000_0000,
         ];
         assert_eq!(bytes, expected);
