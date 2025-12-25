@@ -63,7 +63,9 @@ impl FontGlyphs {
                 row_pixels.chunks(u8::BITS as usize).map(|pixels| {
                     pixels
                         .iter()
+                        .rev()
                         .enumerate()
+                        // Filter empty pixels
                         .flat_map(
                             |(byte_index, &color)| {
                                 if color.into() { Some(byte_index) } else { None }
