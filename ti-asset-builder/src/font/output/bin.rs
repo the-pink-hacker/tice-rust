@@ -98,19 +98,6 @@ fn generate_serial_builder(
     pack: FontPackDefinition,
     fonts: Vec<(FontDefinition, FontGlyphs)>,
 ) -> anyhow::Result<Builder> {
-    let fonts_length = super::get_fonts_length(fonts.len())?;
-
-    // Pack header
-    let mut header_builder = SectorBuilder::default()
-        .bytes(*FONT_PACK_HEADER)
-        .dynamic_u24(SectorId::Header, SectorId::Metadata, 0)
-        .u8(fonts_length);
-
-    // Points to all the fonts in the pack
-    for (i, _) in fonts.iter().enumerate() {
-        header_builder = header_builder.dynamic_u24(SectorId::Header, SectorId::FontHeader(i), 0);
-    }
-
     // Pack metadata
     let mut metadata_builder =
         SectorBuilder::default().dynamic_u24(SectorId::Metadata, SectorId::MetadataEnd, 0);
@@ -144,11 +131,33 @@ fn generate_serial_builder(
         }
     }
 
-    let mut builder = Builder::default()
-        .sector(SectorId::Header, header_builder)
-        .sector(SectorId::Metadata, metadata_builder)
-        .sector_default(SectorId::MetadataEnd)
-        .sector(SectorId::MetadataStrings, metadata_string_builder);
+    let fonts_length = super::get_fonts_length(fonts.len())?;
+
+    // Pack header
+    let mut header_builder = SectorBuilder::default().bytes(*FONT_PACK_HEADER);
+
+    header_builder = if string_index == 0 {
+        // No metadata
+        header_builder.null_24()
+    } else {
+        header_builder.dynamic_u24(SectorId::Header, SectorId::Metadata, 0)
+    };
+
+    header_builder = header_builder.u8(fonts_length);
+
+    // Points to all the fonts in the pack
+    for (i, _) in fonts.iter().enumerate() {
+        header_builder = header_builder.dynamic_u24(SectorId::Header, SectorId::FontHeader(i), 0);
+    }
+
+    let mut builder = Builder::default().sector(SectorId::Header, header_builder);
+
+    if string_index != 0 {
+        builder = builder
+            .sector(SectorId::Metadata, metadata_builder)
+            .sector_default(SectorId::MetadataEnd)
+            .sector(SectorId::MetadataStrings, metadata_string_builder);
+    }
 
     // Add each font
     for (font_index, (font, font_glyphs)) in fonts.into_iter().enumerate() {
