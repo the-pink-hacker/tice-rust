@@ -62,12 +62,12 @@ fn add_font_sectors(
                 .u8(font.height)
                 .u8(glyph_count)
                 .u8(first_glyph)
-                .dynamic_u16(
+                .dynamic_u24(
                     SectorId::FontHeader(font_index),
                     SectorId::FontGlyphWidths(font_index),
                     0,
                 )
-                .dynamic_u16(
+                .dynamic_u24(
                     SectorId::FontHeader(font_index),
                     SectorId::FontGlyphBitmaps(font_index),
                     0,
@@ -261,9 +261,9 @@ mod tests {
             ]
             .iter(),
             // Widths offset
-            [16, 0].iter(),
+            [18, 0, 0].iter(),
             // Bitmap table offset
-            [19, 0].iter(),
+            [21, 0, 0].iter(),
             [
                 6,           // Italic space adjust
                 4,           // Space above
@@ -279,11 +279,11 @@ mod tests {
             [3, 0, 8].iter(),
             // Bitmap table
             // First glyph
-            [25, 0].iter(),
+            [27, 0].iter(),
             // Unused glyph
             [0, 0].iter(),
             // Second glyph
-            [31, 0].iter(),
+            [33, 0].iter(),
             // First glyph bitmap
             [0, 1, 2, 3, 4, 5].iter(),
             // Second glyph bitmap
