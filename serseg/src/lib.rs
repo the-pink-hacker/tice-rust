@@ -1,3 +1,5 @@
+#![feature(macro_metavar_expr_concat)]
+
 pub mod builder;
 pub mod field;
 pub mod prelude;
@@ -67,6 +69,37 @@ mod tests {
                 SectorBuilder::default()
                     .dynamic_u24(ExampleSectorKey::Second, ExampleSectorKey::Third, 0)
                     .dynamic_u24(ExampleSectorKey::Second, ExampleSectorKey::Third, 1),
+            )
+            .sector(
+                ExampleSectorKey::Third,
+                SectorBuilder::default()
+                    .string("first string")
+                    .string("second string"),
+            )
+            .build(&mut buffer)
+            .await
+            .unwrap();
+
+        assert_eq!(buffer.into_inner(), expected);
+    }
+
+    #[tokio::test]
+    async fn sector_dynamic_chunk() {
+        let expected = b"\xFF\x03\x00\x00\x0A\x00\x00first string\x00second string\x00";
+        let mut buffer = Cursor::new(Vec::with_capacity(expected.len()));
+
+        Builder::default()
+            .sector(ExampleSectorKey::First, SectorBuilder::default().u8(0xFF))
+            .sector(
+                ExampleSectorKey::Second,
+                SectorBuilder::default()
+                    .dynamic_u24_chunk(ExampleSectorKey::Second, ExampleSectorKey::Third, 0, 2)
+                    .dynamic_u24_chunk(
+                        ExampleSectorKey::Second,
+                        ExampleSectorKey::Third,
+                        1,
+                        (ScaleRounding::Nearest, 2),
+                    ),
             )
             .sector(
                 ExampleSectorKey::Third,

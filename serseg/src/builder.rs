@@ -5,7 +5,10 @@ use log::debug;
 use tokio::io::{AsyncSeek, AsyncWrite, AsyncWriteExt};
 use u24::u24;
 
-use crate::{field::SerialField, tracker::SerialTracker};
+use crate::{
+    field::{Scale, ScaleRounding, SerialField},
+    tracker::SerialTracker,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SerialBuilder<S: Hash + Eq + Clone + std::fmt::Debug> {
@@ -64,6 +67,63 @@ impl<S: Hash + Eq + Clone + std::fmt::Debug> SerialBuilder<S> {
     }
 }
 
+macro_rules! int_field {
+    ($field_name: ident, $unsigned: ident) => {
+        pub fn $unsigned(self, value: impl Into<$unsigned>) -> Self {
+            self.field(SerialField::$field_name(value.into()))
+        }
+    };
+    ($field_name: ident, $unsigned: ident, $signed: ident) => {
+        int_field!($field_name, $unsigned);
+
+        pub fn $signed(self, value: impl Into<$signed>) -> Self {
+            self.field(SerialField::$field_name(value.into() as $unsigned))
+        }
+    };
+}
+
+macro_rules! null_field {
+    ($size: literal) => {
+        pub fn ${concat(null_, $size)}(self) -> Self {
+            self.field(SerialField::${concat(U, $size)}(::std::default::Default::default()))
+        }
+    };
+}
+
+macro_rules! dynamic_field {
+    ($name: ident, $bytes: literal) => {
+        pub fn ${concat(dynamic_, $name)}(self, origin: S, sector: S, index: usize) -> Self {
+            self.field(SerialField::Dynamic {
+                origin,
+                sector,
+                index,
+                rounding: ScaleRounding::default(),
+                scale: 1,
+                bytes: $bytes,
+            })
+        }
+
+        pub fn ${concat(dynamic_, $name, _chunk)}(
+            self,
+            origin: S,
+            sector: S,
+            index: usize,
+            scale: impl Scale,
+        ) -> Self {
+            let (rounding, scale) = scale.get();
+
+            self.field(SerialField::Dynamic {
+                origin,
+                sector,
+                index,
+                rounding,
+                scale,
+                bytes: $bytes,
+            })
+        }
+    };
+}
+
 impl<S: Hash + Eq + Clone + std::fmt::Debug> SerialSectorBuilder<S> {
     fn field(mut self, field: SerialField<S>) -> Self {
         self.fields.push(field);
@@ -78,89 +138,22 @@ impl<S: Hash + Eq + Clone + std::fmt::Debug> SerialSectorBuilder<S> {
         self.field(SerialField::Bytes(value.into_iter().collect()))
     }
 
-    pub fn u8(self, value: impl Into<u8>) -> Self {
-        self.field(SerialField::U8(value.into()))
-    }
+    int_field!(U8, u8, i8);
+    int_field!(U16, u16, i16);
+    int_field!(U24, u24);
+    int_field!(U32, u32, i32);
+    int_field!(U64, u64, i64);
 
-    pub fn i8(self, value: impl Into<i8>) -> Self {
-        self.field(SerialField::U8(value.into() as u8))
-    }
+    null_field!(8);
+    null_field!(16);
+    null_field!(24);
+    null_field!(32);
+    null_field!(64);
 
-    pub fn u16(self, value: impl Into<u16>) -> Self {
-        self.field(SerialField::U16(value.into()))
-    }
-
-    pub fn i16(self, value: impl Into<i16>) -> Self {
-        self.field(SerialField::U16(value.into() as u16))
-    }
-
-    pub fn u24(self, value: impl Into<u24>) -> Self {
-        self.field(SerialField::U24(value.into()))
-    }
-
-    pub fn u32(self, value: impl Into<u32>) -> Self {
-        self.field(SerialField::U32(value.into()))
-    }
-
-    pub fn i32(self, value: impl Into<i32>) -> Self {
-        self.field(SerialField::U32(value.into() as u32))
-    }
-
-    pub fn u64(self, value: impl Into<u64>) -> Self {
-        self.field(SerialField::U64(value.into()))
-    }
-
-    pub fn i64(self, value: impl Into<i64>) -> Self {
-        self.field(SerialField::U64(value.into() as u64))
-    }
-
-    pub fn null_16(self) -> Self {
-        self.field(SerialField::U16(0))
-    }
-
-    pub fn null_24(self) -> Self {
-        self.field(SerialField::U24(u24::from_le_bytes([0, 0, 0])))
-    }
-
-    pub fn dynamic_u16(self, origin: S, sector: S, index: usize) -> Self {
-        self.field(SerialField::Dynamic {
-            origin,
-            sector,
-            index,
-            scale: 1,
-            bytes: 2,
-        })
-    }
-
-    pub fn dynamic_u16_chunk(self, origin: S, sector: S, index: usize, scale: usize) -> Self {
-        self.field(SerialField::Dynamic {
-            origin,
-            sector,
-            index,
-            scale,
-            bytes: 2,
-        })
-    }
-
-    pub fn dynamic_u24(self, origin: S, sector: S, index: usize) -> Self {
-        self.field(SerialField::Dynamic {
-            origin,
-            sector,
-            index,
-            scale: 1,
-            bytes: 3,
-        })
-    }
-
-    pub fn dynamic_u24_chunk(self, origin: S, sector: S, index: usize, scale: usize) -> Self {
-        self.field(SerialField::Dynamic {
-            origin,
-            sector,
-            index,
-            scale,
-            bytes: 3,
-        })
-    }
+    dynamic_field!(u8, 1);
+    dynamic_field!(u16, 2);
+    dynamic_field!(u24, 3);
+    dynamic_field!(u32, 4);
 
     pub fn fill(self, origin: S, fill: usize) -> Self {
         self.field(SerialField::Fill { origin, fill })
