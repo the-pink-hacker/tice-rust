@@ -209,16 +209,16 @@ impl<S: Hash + Eq + Clone + std::fmt::Debug> SerialField<S> {
                 buffer.write_u8(*value).await?;
             }
             Self::U16(value) => {
-                buffer.write_u16(*value).await?;
+                buffer.write_u16_le(*value).await?;
             }
             Self::U24(value) => {
                 buffer.write_all(&value.to_le_bytes()).await?;
             }
             Self::U32(value) => {
-                buffer.write_u32(*value).await?;
+                buffer.write_u32_le(*value).await?;
             }
             Self::U64(value) => {
-                buffer.write_u64(*value).await?;
+                buffer.write_u64_le(*value).await?;
             }
             Self::Fill { origin, fill } => {
                 let offset = buffer.stream_position().await? as usize;
