@@ -155,8 +155,14 @@ impl<S: Hash + Eq + Clone + std::fmt::Debug> SerialSectorBuilder<S> {
     dynamic_field!(u24, 3);
     dynamic_field!(u32, 4);
 
+    /// Adds padding to make the distance from origin equal fill.
     pub fn fill(self, origin: S, fill: usize) -> Self {
         self.field(SerialField::Fill { origin, fill })
+    }
+
+    /// Adds padding to make the distance from origin be a multiple of align.
+    pub fn align(self, origin: S, align: usize) -> Self {
+        self.field(SerialField::Align { origin, align })
     }
 
     pub fn external(self, path: impl Into<PathBuf>, size: usize) -> Self {

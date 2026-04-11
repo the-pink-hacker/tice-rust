@@ -56,6 +56,19 @@ impl Scale for (ScaleRounding, usize) {
     }
 }
 
+fn fill_size(offset: usize, origin_position: usize, fill: usize) -> anyhow::Result<usize> {
+    let fill_start = offset.checked_sub(origin_position).with_context(|| format!("Failed to serialize; current position is before fill origin: {offset} < {origin_position}"))?;
+    fill.checked_sub(fill_start).with_context(|| {
+        format!("Failed to serialize; fill start is past fill amount: {fill_start} > {fill}")
+    })
+}
+
+fn align_size(offset: usize, origin_position: usize, align: usize) -> anyhow::Result<usize> {
+    let align_start = offset.checked_sub(origin_position).with_context(|| format!("Failed to serialize; current position is before align origin: {offset} < {origin_position}"))?;
+
+    Ok((align * align_start.div_ceil(align)) - align_start)
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SerialField<S: Hash + Eq> {
     /// Refences data that isn't know yet
@@ -88,6 +101,10 @@ pub enum SerialField<S: Hash + Eq> {
         origin: S,
         fill: usize,
     },
+    Align {
+        origin: S,
+        align: usize,
+    },
 }
 
 impl<S: Hash + Eq + Clone + std::fmt::Debug> SerialField<S> {
@@ -116,7 +133,11 @@ impl<S: Hash + Eq + Clone + std::fmt::Debug> SerialField<S> {
             Self::External { path: _, size } => Ok(*size),
             Self::Fill { origin, fill } => {
                 let origin_position = tracker.offset_from_origin(origin)?;
-                Self::fill_size(offset, origin_position, *fill)
+                fill_size(offset, origin_position, *fill)
+            }
+            Self::Align { origin, align } => {
+                let origin_position = tracker.offset_from_origin(origin)?;
+                align_size(offset, origin_position, *align)
             }
         }
     }
@@ -223,8 +244,14 @@ impl<S: Hash + Eq + Clone + std::fmt::Debug> SerialField<S> {
             Self::Fill { origin, fill } => {
                 let offset = buffer.stream_position().await? as usize;
                 let origin_position = tracker.offset_from_origin(origin)?;
-                let fill_amount = Self::fill_size(offset, origin_position, *fill)?;
+                let fill_amount = fill_size(offset, origin_position, *fill)?;
                 buffer.seek(SeekFrom::Current(fill_amount as i64)).await?;
+            }
+            Self::Align { origin, align } => {
+                let offset = buffer.stream_position().await? as usize;
+                let origin_positon = tracker.offset_from_origin(origin)?;
+                let align_amount = align_size(offset, origin_positon, *align)?;
+                buffer.seek(SeekFrom::Current(align_amount as i64)).await?;
             }
             Self::External { path, size } => {
                 let data = tokio::fs::read(path).await?;
@@ -241,13 +268,6 @@ impl<S: Hash + Eq + Clone + std::fmt::Debug> SerialField<S> {
         }
 
         Ok(())
-    }
-
-    fn fill_size(offset: usize, origin_position: usize, fill: usize) -> anyhow::Result<usize> {
-        let fill_start = offset.checked_sub(origin_position).with_context(|| format!("Failed to serialize; current position is before fill origin: {offset} < {origin_position}"))?;
-        fill.checked_sub(fill_start).with_context(|| {
-            format!("Failed to serialize; fill start is past fill amount: {fill_start} > {fill}")
-        })
     }
 }
 
@@ -316,5 +336,48 @@ mod tests {
         let rounded = ScaleRounding::Nearest.apply(26, 5);
 
         assert_eq!(rounded, 5);
+    }
+
+    #[test]
+    fn fill_size_regular() {
+        let fill = fill_size(12, 10, 10).unwrap();
+        assert_eq!(fill, 8);
+    }
+
+    #[test]
+    fn fill_size_error() {
+        let is_err = fill_size(0, 1, 1).is_err();
+
+        assert!(is_err);
+    }
+
+    #[test]
+    fn align_size_padded_0() {
+        let padding = align_size(12, 10, 20).unwrap();
+        assert_eq!(padding, 18);
+    }
+
+    #[test]
+    fn align_size_padded_1() {
+        let padding = align_size(10, 5, 20).unwrap();
+        assert_eq!(padding, 15);
+    }
+
+    #[test]
+    fn align_size_padded_2() {
+        let padding = align_size(100, 5, 10).unwrap();
+        assert_eq!(padding, 5);
+    }
+
+    #[test]
+    fn align_size_none() {
+        let padding = align_size(16, 14, 2).unwrap();
+        assert_eq!(padding, 0);
+    }
+
+    #[test]
+    fn align_size_error() {
+        let is_err = align_size(0, 1, 1).is_err();
+        assert!(is_err);
     }
 }
