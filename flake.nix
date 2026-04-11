@@ -105,8 +105,8 @@
                 };
             };
             overlays.default = final: prev: {
-                inherit (self.packages.${prev.system}) ti-asset-builder;
-                inherit (self.packages.${prev.system}) tilp;
+                inherit (self.packages.${system}) ti-asset-builder;
+                inherit (self.packages.${system}) tilp;
             };
         });
 }
