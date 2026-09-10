@@ -19,10 +19,14 @@ pub struct CliFontPackCommand {
 
 #[derive(Debug, Args, Clone)]
 pub struct CliSpriteCommand {
-    /// The sprite definition file
+    /// The sprite table file
+    #[clap(short, long)]
     pub definition: PathBuf,
     /// The folder to output final asset
+    #[clap(short, long)]
     pub output: PathBuf,
+    #[clap(short = 't', long)]
+    pub output_type: OutputType,
 }
 
 #[derive(Debug, Subcommand, Clone)]

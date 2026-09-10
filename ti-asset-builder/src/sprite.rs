@@ -1,9 +1,14 @@
-use std::path::Path;
+use std::{collections::HashMap, path::Path};
 
 use anyhow::Context;
 use image::GenericImageView;
+use imageproc::geometric_transformations::Interpolation;
+use linked_hash_map::LinkedHashMap;
+use tokio::io::AsyncWriteExt;
 
-use crate::cli::CliSpriteCommand;
+use crate::{cli::CliSpriteCommand, output::OutputType, path::PathExt, sprite::definition::Sprite};
+
+mod definition;
 
 #[derive(Debug, Clone, Copy)]
 pub struct ColorRGB24 {
@@ -94,6 +99,22 @@ impl RawImage {
         Ok(Self { image })
     }
 
+    pub fn rotate(mut self, degrees: f32) -> Self {
+        if (degrees % 360.0).is_normal() {
+            self.image = imageproc::geometric_transformations::rotate_about_center(
+                &self.image.to_rgb8(),
+                degrees.to_radians(),
+                Interpolation::Bilinear,
+                imageproc::geometric_transformations::Border::Constant(image::Rgb([0, 0, 0])),
+            )
+            .into();
+
+            self
+        } else {
+            self
+        }
+    }
+
     /// Returns the width, height, and pixel data of the image
     pub fn into_rgb24(self) -> (u32, u32, Vec<ColorRGB24>) {
         let (width, height) = self.image.dimensions();
@@ -121,6 +142,126 @@ impl RawImage {
     }
 }
 
+async fn load_sprite_definition(
+    path: &Path,
+) -> anyhow::Result<HashMap<String, LinkedHashMap<String, Sprite>>> {
+    let raw = tokio::fs::read_to_string(path)
+        .await
+        .with_context(|| format!("Failed to read sprite table at {path:?}"))?;
+    let definition = toml::from_str(&raw)
+        .with_context(|| format!("Failed to parse sprite table at {path:?}"))?;
+
+    Ok(definition)
+}
+
+#[derive(Debug)]
+struct RawSprite {
+    pixels: Vec<Color8>,
+    width: u8,
+}
+
+impl RawSprite {
+    fn new(pixels: Vec<Color8>, width: u8) -> Self {
+        Self { pixels, width }
+    }
+}
+
+fn rgb_line_to_string_c(rgb: &[Color8]) -> String {
+    rgb.iter()
+        .map(|pixel| format!("0x{:X}", u8::from(*pixel)))
+        .collect::<Vec<_>>()
+        .join(",")
+}
+
+fn generate_c_sprite_pixels_rgb(output: &mut String, sprite: &RawSprite) {
+    output.push_str(
+        &sprite
+            .pixels
+            .chunks_exact(sprite.width as usize)
+            .map(rgb_line_to_string_c)
+            .map(|line| format!("\n        {}", line))
+            .collect::<Vec<String>>()
+            .join(","),
+    );
+}
+
+pub async fn generate_sprite_file_c(
+    sprite_table_path: &Path,
+    out_path: &Path,
+    sprite_collection_name: &str,
+    collection: LinkedHashMap<String, Sprite>,
+) -> anyhow::Result<()> {
+    tokio::fs::create_dir_all(out_path).await?;
+
+    let mut header_output = "#include <graphx.h>\n".to_string();
+    let mut c_output = header_output.clone();
+
+    for (sprite_suffix, sprite) in collection.iter() {
+        let sprite = sprite.to_expanded();
+
+        let image_path = sprite_table_path.relative_parent_suffix(&sprite.path, ".png")?;
+        let (width, height, pixels) = RawImage::load(&image_path)
+            .await?
+            .rotate(sprite.rotation)
+            .into_rgb24();
+        let sprite_suffix_upper = sprite_suffix.to_uppercase();
+
+        header_output += &format!(
+            "\n#define SPRITE_{sprite_suffix_upper}_WIDTH {width}\n\
+            #define SPRITE_{sprite_suffix_upper}_HEIGHT {height}\n\
+            extern const gfx_sprite_t sprite_{sprite_suffix};\n"
+        );
+
+        c_output += &format!(
+            "\nconst gfx_sprite_t sprite_{sprite_suffix} = {{\n    \
+                .width = {width},\n    \
+                .height = {height},\n    \
+                .data = {{"
+        );
+
+        let raw_sprite =
+            RawSprite::new(pixels.into_iter().map(Color8::from).collect(), width as u8);
+        generate_c_sprite_pixels_rgb(&mut c_output, &raw_sprite);
+
+        c_output += "\n    }\n};\n";
+    }
+
+    let c_out = out_path.join(format!("{}.c", sprite_collection_name));
+    let mut file = tokio::fs::File::create(c_out).await?;
+    file.write_all(c_output.as_bytes()).await?;
+
+    let header_out = out_path.join(format!("{}.h", sprite_collection_name));
+    let mut file = tokio::fs::File::create(header_out).await?;
+    file.write_all(header_output.as_bytes()).await?;
+
+    Ok(())
+}
+
 pub async fn build(command: CliSpriteCommand) -> anyhow::Result<()> {
-    todo!()
+    let definition_path = command.definition.canonicalize().with_context(|| {
+        format!(
+            "Failed to get canon sprite table path: {:?}",
+            command.definition
+        )
+    })?;
+
+    let definition = load_sprite_definition(&definition_path).await?;
+
+    for (sprite_collection_name, collection) in definition.into_iter() {
+        match command.output_type {
+            OutputType::Binary => unimplemented!(),
+            OutputType::C => {
+                generate_sprite_file_c(
+                    &command.definition,
+                    &command.output,
+                    &sprite_collection_name,
+                    collection,
+                )
+                .await?
+            }
+            OutputType::Assembly => unimplemented!(),
+        }
+    }
+
+    Ok(())
 }
