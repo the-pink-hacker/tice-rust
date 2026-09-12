@@ -40,10 +40,11 @@ fn add_font_sectors(
     for glyph_index in first_glyph..=font_glyphs.last_glyph {
         if let Some((glyph_bitmap, glyph_width)) = font_glyphs.glyphs.remove(&glyph_index) {
             widths_builder = widths_builder.u8(glyph_width);
-            bitmap_table_builder = bitmap_table_builder.dynamic_u16(
+            bitmap_table_builder = bitmap_table_builder.dynamic_u16_offset(
                 SectorId::FontHeader(font_index),
                 SectorId::FontGlyphBitmap(font_index, glyph_index),
                 0,
+                ((glyph_width - 1) / 8) as isize - 2,
             );
             glyph_bitmaps.push((glyph_bitmap, glyph_index));
         } else {
@@ -164,7 +165,7 @@ fn generate_serial_builder(
         builder = add_font_sectors(builder, font, font_index, font_glyphs)?;
     }
 
-    debug!("{builder:?}");
+    debug!("{builder:#?}");
 
     Ok(builder)
 }
@@ -288,11 +289,11 @@ mod tests {
             [3, 0, 8].iter(),
             // Bitmap table
             // First glyph
-            [27, 0].iter(),
+            [25, 0].iter(),
             // Unused glyph
             [0, 0].iter(),
             // Second glyph
-            [33, 0].iter(),
+            [31, 0].iter(),
             // First glyph bitmap
             [0, 1, 2, 3, 4, 5].iter(),
             // Second glyph bitmap

@@ -6,7 +6,7 @@ use tokio::io::{AsyncSeek, AsyncWrite, AsyncWriteExt};
 use u24::u24;
 
 use crate::{
-    field::{Scale, ScaleRounding, SerialField},
+    field::{Scale, ScaleRounding, SerialField, SerialFieldDynamic},
     tracker::SerialTracker,
 };
 
@@ -93,14 +93,27 @@ macro_rules! null_field {
 macro_rules! dynamic_field {
     ($name: ident, $bytes: literal) => {
         pub fn ${concat(dynamic_, $name)}(self, origin: S, sector: S, index: usize) -> Self {
-            self.field(SerialField::Dynamic {
+            self.field(SerialField::Dynamic(SerialFieldDynamic {
                 origin,
                 sector,
                 index,
                 rounding: ScaleRounding::default(),
                 scale: 1,
                 bytes: $bytes,
-            })
+                offset: 0,
+            }))
+        }
+
+        pub fn ${concat(dynamic_, $name, _offset)}(self, origin: S, sector: S, index: usize, offset: isize) -> Self {
+            self.field(SerialField::Dynamic(SerialFieldDynamic {
+                origin,
+                sector,
+                index,
+                rounding: ScaleRounding::default(),
+                scale: 1,
+                bytes: $bytes,
+                offset,
+            }))
         }
 
         pub fn ${concat(dynamic_, $name, _chunk)}(
@@ -112,14 +125,36 @@ macro_rules! dynamic_field {
         ) -> Self {
             let (rounding, scale) = scale.get();
 
-            self.field(SerialField::Dynamic {
+            self.field(SerialField::Dynamic(SerialFieldDynamic {
                 origin,
                 sector,
                 index,
                 rounding,
                 scale,
                 bytes: $bytes,
-            })
+                offset: 0,
+            }))
+        }
+
+        pub fn ${concat(dynamic_, $name, _chunk_offset)}(
+            self,
+            origin: S,
+            sector: S,
+            index: usize,
+            scale: impl Scale,
+            offset: isize,
+        ) -> Self {
+            let (rounding, scale) = scale.get();
+
+            self.field(SerialField::Dynamic(SerialFieldDynamic {
+                origin,
+                sector,
+                index,
+                rounding,
+                scale,
+                bytes: $bytes,
+                offset,
+            }))
         }
     };
 }

@@ -60,18 +60,21 @@ impl FontGlyphs {
             // Process over each row
             .flat_map(|row_pixels| {
                 // Convert pairs of 8 into bytes
-                row_pixels.chunks(u8::BITS as usize).map(|pixels| {
-                    pixels
-                        .iter()
-                        .enumerate()
-                        // Filter empty pixels
-                        .flat_map(
-                            |(byte_index, &color)| {
-                                if color.into() { Some(byte_index) } else { None }
-                            },
-                        )
-                        .fold(0, |byte, byte_index| byte | (1 << (7 - byte_index)))
-                })
+                row_pixels
+                    .chunks(8)
+                    .map(|pixels| {
+                        pixels
+                            .iter()
+                            .enumerate()
+                            // Filter empty pixels
+                            .flat_map(
+                                |(byte_index, &color)| {
+                                    if color.into() { Some(byte_index) } else { None }
+                                },
+                            )
+                            .fold(0, |byte, byte_index| byte | (1 << (7 - byte_index)))
+                    })
+                    .rev()
             })
             .collect()
     }
@@ -185,42 +188,33 @@ mod tests {
         let bytes = FontGlyphs::pixels_to_bytes(
             6,
             [
-                true, false, true, false, true, false, // Row 1
-                false, true, false, true, false, true, // Row 2
-                false, false, false, true, true, true, // Row 3
+                false, true, true, true, true, false, // Row 1
+                false, false, true, false, false, false, // Row 2
+                false, false, true, true, false, false, // Row 3
+                false, false, true, true, false, false, // Row 4
+                false, false, true, true, false, false, // Row 5
             ]
             .into_iter()
             .map(ColorMonochrome::from)
             .collect(),
         );
-        let expected = [0b1010_1000, 0b0101_0100, 0b0001_1100];
+        let expected = [0x78, 0x20, 0x30, 0x30, 0x30];
         assert_eq!(bytes, expected);
     }
 
     #[test]
-    fn pixels_to_bytes_9() {
+    fn pixels_to_bytes_23() {
         let bytes = FontGlyphs::pixels_to_bytes(
-            9,
+            23,
             [
-                true, false, true, false, true, false, true, false, true, // Row 1
-                false, true, false, true, false, true, false, true, false, // Row 2
-                false, false, false, true, true, true, true, true, false, // Row 3
+                true, false, false, false, false, false, false, false, false, true, false, false,
+                false, false, false, false, true, true, false, false, false, false, false,
             ]
             .into_iter()
             .map(ColorMonochrome::from)
             .collect(),
         );
-        let expected = [
-            // Row 1
-            0b1010_1010,
-            0b1000_0000,
-            // Row 2
-            0b0101_0101,
-            0b0000_0000,
-            // Row 3
-            0b0001_1111,
-            0b0000_0000,
-        ];
+        let expected = [0xC0, 0x40, 0x80];
         assert_eq!(bytes, expected);
     }
 }

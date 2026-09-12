@@ -70,17 +70,21 @@ fn align_size(offset: usize, origin_position: usize, align: usize) -> anyhow::Re
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SerialFieldDynamic<S: Hash + Eq> {
+    pub origin: S,
+    pub sector: S,
+    /// Index from begining of first sector
+    pub index: usize,
+    pub scale: usize,
+    pub rounding: ScaleRounding,
+    pub bytes: usize,
+    pub offset: isize,
+}
+
+#[derive(Clone, PartialEq, Eq)]
 pub enum SerialField<S: Hash + Eq> {
     /// Refences data that isn't know yet
-    Dynamic {
-        origin: S,
-        sector: S,
-        /// Index from begining of first sector
-        index: usize,
-        scale: usize,
-        rounding: ScaleRounding,
-        bytes: usize,
-    },
+    Dynamic(SerialFieldDynamic<S>),
     /// File to be loaded on build
     External {
         path: PathBuf,
@@ -107,6 +111,43 @@ pub enum SerialField<S: Hash + Eq> {
     },
 }
 
+impl<S: Hash + Eq + std::fmt::Debug> std::fmt::Debug for SerialField<S> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Dynamic(field) => SerialFieldDynamic::fmt(field, f),
+            Self::External { path, size } => f
+                .debug_struct("SerialFieldExternal")
+                .field("path", path)
+                .field("size", size)
+                .finish(),
+            Self::Align { origin, align } => f
+                .debug_struct("SerialFieldAlign")
+                .field("origin", origin)
+                .field("align", align)
+                .finish(),
+            Self::Fill { origin, fill } => f
+                .debug_struct("SerialFieldFill")
+                .field("origin", origin)
+                .field("fill", fill)
+                .finish(),
+            Self::U8(x) => write!(f, "{x}u8"),
+            Self::U16(x) => write!(f, "{x}u16"),
+            Self::U24(x) => write!(f, "{x}u24"),
+            Self::U32(x) => write!(f, "{x}u32"),
+            Self::U64(x) => write!(f, "{x}u64"),
+            Self::String(text) => write!(f, "\"{text}\""),
+            Self::Bytes(bytes) => {
+                write!(f, "0x")?;
+                for byte in bytes {
+                    write!(f, "{:02X}", byte)?;
+                }
+
+                Ok(())
+            }
+        }
+    }
+}
+
 impl<S: Hash + Eq + Clone + std::fmt::Debug> SerialField<S> {
     pub(crate) fn calculate_size(
         &self,
@@ -116,14 +157,7 @@ impl<S: Hash + Eq + Clone + std::fmt::Debug> SerialField<S> {
         match self {
             // Add one for null terminator
             Self::String(value) => Ok(value.len() + 1),
-            Self::Dynamic {
-                sector: _,
-                index: _,
-                origin: _,
-                scale: _,
-                rounding: _,
-                bytes,
-            } => Ok(*bytes),
+            Self::Dynamic(dynamic) => Ok(dynamic.bytes),
             Self::U24(_) => Ok(3),
             Self::U8(_) => Ok(1),
             Self::U16(_) => Ok(2),
@@ -154,16 +188,21 @@ impl<S: Hash + Eq + Clone + std::fmt::Debug> SerialField<S> {
                 buffer.write_u8(0).await?;
             }
             Self::Bytes(value) => buffer.write_all(value).await?,
-            Self::Dynamic {
+            Self::Dynamic(SerialFieldDynamic {
                 sector,
                 index,
                 origin,
                 scale,
                 rounding,
                 bytes,
-            } => {
-                let pointer =
-                    tracker.offset_field_from_sector(origin, sector, *index, sectors, tracker)?;
+                offset,
+            }) => {
+                let pointer = tracker
+                    .offset_field_from_sector(origin, sector, *index, sectors, tracker)?
+                    .checked_add_signed(*offset)
+                    .with_context(|| {
+                        format!("Pointer overflow: {origin:#?} -> {sector:#?}[{index}] + {offset}")
+                    })?;
 
                 // Not always what the user wants
                 // TODO: Add scale aligned check
