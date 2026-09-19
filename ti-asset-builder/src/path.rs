@@ -32,7 +32,12 @@ impl PathExt for Path {
         relative: impl AsRef<Path>,
         suffix: impl AsRef<OsStr>,
     ) -> anyhow::Result<PathBuf> {
-        let path = self.join("..").join(relative).append_str(suffix);
+        let path = self
+            .canonicalize()
+            .with_context(|| format!("Failed to normalize: {self:?}"))?
+            .join("..")
+            .join(relative)
+            .append_str(suffix);
         path.normalize_lexically()
             .with_context(|| format!("Failed to normalize path: {path:?}"))
     }
