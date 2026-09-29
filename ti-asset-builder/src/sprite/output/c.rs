@@ -30,8 +30,9 @@ pub async fn generate_sprite_file_c(
     sprite_collection_name: &str,
     collection: LinkedHashMap<String, Sprite>,
 ) -> anyhow::Result<()> {
-    let mut header_output = "#include <graphx.h>\n".to_string();
-    let mut c_output = header_output.clone();
+    let mut header_output = "#pragma once\n\n#include <graphx.h>\n".to_string();
+    let header_name = format!("{}.h", sprite_collection_name);
+    let mut c_output = format!("#include \"{header_name}\"\n");
 
     for (sprite_suffix, sprite) in collection {
         let (width, height, pixels) = RawImage::load_sprite(sprite_table_path, sprite).await?;
@@ -60,7 +61,7 @@ pub async fn generate_sprite_file_c(
     let mut file = tokio::fs::File::create(c_out).await?;
     file.write_all(c_output.as_bytes()).await?;
 
-    let header_out = out_path.join(format!("{sprite_collection_name}.h"));
+    let header_out = out_path.join(header_name);
     let mut file = tokio::fs::File::create(header_out).await?;
     file.write_all(header_output.as_bytes()).await?;
 
