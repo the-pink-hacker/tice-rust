@@ -15,9 +15,9 @@ use crate::{
         FontDefinition, FontDefinitionWrapper, FontGlyph, FontPackDefinition,
         FontPackDefinitionWrapper,
     },
+    image::{ColorMonochrome, RawImage},
     output::OutputType,
     path::PathExt,
-    sprite::{ColorMonochrome, RawImage},
 };
 
 #[derive(Debug)]

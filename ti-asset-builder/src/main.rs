@@ -2,6 +2,7 @@
 
 mod cli;
 mod font;
+mod image;
 mod output;
 mod path;
 mod sprite;

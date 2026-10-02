@@ -1,9 +1,15 @@
 use std::path::PathBuf;
 
+use indexmap::IndexMap;
 use serde::Deserialize;
 use serde_valid::Validate;
 
-#[derive(Debug, Deserialize, Validate, Clone, Default)]
+#[derive(Debug, Deserialize, Clone)]
+pub struct SpriteTableDefinition {
+    pub sprites: IndexMap<String, Sprite>,
+}
+
+#[derive(Debug, Deserialize, Validate, Clone)]
 pub struct ExpandedSprite {
     pub path: PathBuf,
     #[validate(minimum = -360.0)]
@@ -12,7 +18,16 @@ pub struct ExpandedSprite {
     pub rotation: f32,
 }
 
-#[derive(Debug, Deserialize)]
+impl From<PathBuf> for ExpandedSprite {
+    fn from(value: PathBuf) -> Self {
+        Self {
+            path: value,
+            rotation: 0.0,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, Clone)]
 #[serde(untagged)]
 pub enum Sprite {
     Path(PathBuf),
@@ -22,10 +37,7 @@ pub enum Sprite {
 impl Sprite {
     pub fn to_expanded(&self) -> ExpandedSprite {
         match self {
-            Self::Path(path) => ExpandedSprite {
-                path: path.to_path_buf(),
-                ..Default::default()
-            },
+            Self::Path(path) => path.to_path_buf().into(),
             Self::Expanded(sprite) => sprite.clone(),
         }
     }
