@@ -20,7 +20,7 @@ ascii = "1.1.0"
 clap = "4.6.7"
 env_logger = "0.11.11"
 futures = "0.3.34"
-image = "0.25.10"
+image = { version = "0.25.10", default-features = false }
 imageproc = { version = "0.27.0", default-features = false }
 indexmap = { version = "2.14.2", default-features = false }
 log = "0.4.34"
