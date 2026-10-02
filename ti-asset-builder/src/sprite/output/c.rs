@@ -45,7 +45,7 @@ pub async fn generate_sprite_file_c(
         );
 
         c_output += &format!(
-            "\nconst gfx_sprite_t sprite_{name} = {{\n    \
+            "\nconst gfx_sprite_t SPRITE_{sprite_suffix_upper} = {{\n    \
                 .width = {width},\n    \
                 .height = {height},\n    \
                 .data = {{"
