@@ -1,8 +1,6 @@
 use std::path::Path;
 
 use anyhow::Context;
-use image::GenericImageView;
-use imageproc::geometric_transformations::Interpolation;
 
 #[derive(Debug, Clone, Copy)]
 pub struct ColorRGB24 {
@@ -11,9 +9,9 @@ pub struct ColorRGB24 {
     pub blue: u8,
 }
 
-impl From<(u8, u8, u8)> for ColorRGB24 {
-    fn from(value: (u8, u8, u8)) -> Self {
-        let (red, green, blue) = value;
+impl From<[u8; 4]> for ColorRGB24 {
+    fn from(value: [u8; 4]) -> Self {
+        let [red, green, blue, _alpha] = value;
         Self { red, green, blue }
     }
 }
@@ -78,7 +76,7 @@ impl From<ColorRGB24> for Color8 {
 }
 
 pub struct RawImage {
-    image: image::DynamicImage,
+    image: image::ImageBuffer<image::Rgba<u8>, Vec<u8>>,
 }
 
 impl RawImage {
@@ -88,36 +86,45 @@ impl RawImage {
             .with_context(|| format!("Failed to read image file at: {path:?}"))?;
 
         let image = image::load_from_memory_with_format(&file, image::ImageFormat::Png)
-            .with_context(|| format!("Failed to parse PNG: {path:?}"))?;
+            .with_context(|| format!("Failed to parse PNG: {path:?}"))?
+            .into_rgba8();
 
         Ok(Self { image })
     }
 
     pub fn rotate(mut self, degrees: f32) -> Self {
-        if (degrees % 360.0).is_normal() {
-            self.image = imageproc::geometric_transformations::rotate_about_center(
-                &self.image.to_rgb8(),
-                degrees.to_radians(),
-                Interpolation::Bilinear,
-                imageproc::geometric_transformations::Border::Constant(image::Rgb([0, 0, 0])),
-            )
-            .into();
+        use imageproc::geometric_transformations as img;
+        let wrapped_degrees = degrees % 360.0;
 
-            self
-        } else {
-            self
+        if wrapped_degrees.is_normal() {
+            match wrapped_degrees {
+                90.0 => {
+                    self.image = img::rotate90(&self.image);
+                }
+                180.0 => {
+                    img::rotate180_mut(&mut self.image);
+                }
+                270.0 => {
+                    self.image = img::rotate270(&self.image);
+                }
+                _ => {
+                    self.image = img::rotate_about_center(
+                        &self.image,
+                        degrees.to_radians(),
+                        img::Interpolation::Bilinear,
+                        img::Border::Constant(image::Rgba(Default::default())),
+                    );
+                }
+            }
         }
+
+        self
     }
 
     /// Returns the width, height, and pixel data of the image
     pub fn into_rgb24(self) -> (u32, u32, Vec<ColorRGB24>) {
         let (width, height) = self.image.dimensions();
-        let pixels = self
-            .image
-            .into_rgb8()
-            .pixels()
-            .map(|pixel| pixel.0.into())
-            .collect();
+        let pixels = self.image.pixels().map(|pixel| pixel.0.into()).collect();
 
         (width, height, pixels)
     }
@@ -125,9 +132,8 @@ impl RawImage {
     /// Returns the width, height, and pixel data of the image
     pub fn into_monochrome(self) -> (u32, u32, Vec<ColorMonochrome>) {
         let (width, height) = self.image.dimensions();
-        let pixels = self
-            .image
-            .into_luma_alpha8()
+        let pixels = image::DynamicImage::from(self.image)
+            .to_luma_alpha8()
             .pixels()
             .map(|pixel| ColorMonochrome(pixel.0[1] != 0))
             .collect();
