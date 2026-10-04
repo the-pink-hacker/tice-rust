@@ -1,37 +1,77 @@
-use std::path::Path;
+use std::{collections::BTreeSet, path::Path};
 
 use anyhow::Context;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy)]
-pub struct ColorRGB24 {
+use crate::sprite::definition::SpritePalette;
+
+#[derive(
+    Debug, Default, Deserialize, Serialize, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord,
+)]
+#[serde(transparent)]
+pub struct ColorRGB1555(u16);
+
+impl From<ColorRGBA32> for ColorRGB1555 {
+    fn from(value: ColorRGBA32) -> Self {
+        if value.is_transparent() {
+            Self::default()
+        } else {
+            let ColorRGBA32 {
+                red,
+                green,
+                blue,
+                alpha: _,
+            } = value;
+
+            let red = ((red / 8) as u16) << 1;
+            let green = ((green / 8) as u16) << 6;
+            let blue = ((blue / 8) as u16) << 11;
+
+            Self(red | green | blue)
+        }
+    }
+}
+
+impl From<u16> for ColorRGB1555 {
+    fn from(value: u16) -> Self {
+        Self(value)
+    }
+}
+
+impl From<ColorRGB1555> for u16 {
+    fn from(value: ColorRGB1555) -> Self {
+        value.0
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct ColorRGBA32 {
     pub red: u8,
     pub green: u8,
     pub blue: u8,
+    #[serde(default = "ColorRGBA32::default_transparency")]
+    pub alpha: u8,
 }
 
-impl From<[u8; 4]> for ColorRGB24 {
+impl ColorRGBA32 {
+    pub fn is_transparent(&self) -> bool {
+        self.alpha == 0
+    }
+
+    fn default_transparency() -> u8 {
+        u8::MAX
+    }
+}
+
+impl From<[u8; 4]> for ColorRGBA32 {
     fn from(value: [u8; 4]) -> Self {
-        let [red, green, blue, _alpha] = value;
-        Self { red, green, blue }
-    }
-}
-
-impl From<ColorRGB24> for (u8, u8, u8) {
-    fn from(value: ColorRGB24) -> Self {
-        (value.red, value.green, value.blue)
-    }
-}
-
-impl From<[u8; 3]> for ColorRGB24 {
-    fn from(value: [u8; 3]) -> Self {
-        let [red, green, blue] = value;
-        Self { red, green, blue }
-    }
-}
-
-impl From<ColorRGB24> for [u8; 3] {
-    fn from(value: ColorRGB24) -> Self {
-        [value.red, value.green, value.blue]
+        let [red, green, blue, alpha] = value;
+        Self {
+            red,
+            green,
+            blue,
+            alpha,
+        }
     }
 }
 
@@ -50,7 +90,7 @@ impl From<bool> for ColorMonochrome {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Default, Clone, Copy)]
 pub struct Color8(u8);
 
 impl From<u8> for Color8 {
@@ -65,13 +105,24 @@ impl From<Color8> for u8 {
     }
 }
 
-impl From<ColorRGB24> for Color8 {
-    fn from(value: ColorRGB24) -> Self {
-        let (red, green, blue) = value.into();
-        let red = (red / 32) << 5;
-        let green = green / 32;
-        let blue = (blue / 64) << 3;
-        Self(red | green | blue)
+impl From<ColorRGBA32> for Color8 {
+    fn from(value: ColorRGBA32) -> Self {
+        if value.is_transparent() {
+            Self::default()
+        } else {
+            let ColorRGBA32 {
+                red,
+                green,
+                blue,
+                alpha: _,
+            } = value;
+
+            let red = (red / 32) << 5;
+            let green = green / 32;
+            let blue = (blue / 64) << 3;
+
+            Self(red | green | blue)
+        }
     }
 }
 
@@ -92,7 +143,7 @@ impl RawImage {
         Ok(Self { image })
     }
 
-    pub fn rotate(mut self, degrees: f32) -> Self {
+    pub fn rotate(&mut self, degrees: f32) {
         use imageproc::geometric_transformations as img;
         let wrapped_degrees = degrees % 360.0;
 
@@ -117,12 +168,21 @@ impl RawImage {
                 }
             }
         }
+    }
 
-        self
+    pub fn collect_colors(&self, colors: &mut BTreeSet<ColorRGB1555>, palette: &SpritePalette) {
+        self.image
+            .pixels()
+            .map(|pixel| ColorRGBA32::from(pixel.0))
+            .filter(|color| !color.is_transparent())
+            .filter(|color| !palette.reserve.contains(color))
+            .for_each(|color| {
+                colors.insert(ColorRGB1555::from(color));
+            });
     }
 
     /// Returns the width, height, and pixel data of the image
-    pub fn into_rgb24(self) -> (u32, u32, Vec<ColorRGB24>) {
+    pub fn into_rgba24(self) -> (u32, u32, Vec<ColorRGBA32>) {
         let (width, height) = self.image.dimensions();
         let pixels = self.image.pixels().map(|pixel| pixel.0.into()).collect();
 

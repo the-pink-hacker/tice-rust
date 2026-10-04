@@ -1,9 +1,12 @@
 #![feature(normalize_lexically)]
+#![feature(iterator_try_collect)]
+#![feature(vec_into_chunks)]
 
 mod cli;
 mod font;
 mod image;
 mod output;
+mod palette;
 mod path;
 mod sprite;
 
@@ -15,5 +18,6 @@ async fn main() -> anyhow::Result<()> {
     match subcommand {
         cli::CliSubcommand::FontPack(command) => font::build(command).await,
         cli::CliSubcommand::Sprite(command) => sprite::build(command).await,
+        cli::CliSubcommand::Palette(command) => palette::build(command).await,
     }
 }

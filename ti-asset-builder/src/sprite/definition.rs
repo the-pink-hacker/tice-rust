@@ -1,12 +1,20 @@
-use std::path::PathBuf;
+use std::{collections::BTreeMap, path::PathBuf};
 
-use indexmap::IndexMap;
 use serde::Deserialize;
 use serde_valid::Validate;
 
-#[derive(Debug, Deserialize, Clone)]
+use crate::image::ColorRGBA32;
+
+#[derive(Debug, Default, Deserialize, Clone)]
+pub struct SpritePalette {
+    pub reserve: Vec<ColorRGBA32>,
+}
+
+#[derive(Debug, Default, Deserialize, Clone)]
+#[serde(default)]
 pub struct SpriteTableDefinition {
-    pub sprites: IndexMap<String, Sprite>,
+    pub palette: SpritePalette,
+    pub sprites: BTreeMap<String, Sprite>,
 }
 
 #[derive(Debug, Deserialize, Validate, Clone)]
@@ -35,10 +43,10 @@ pub enum Sprite {
 }
 
 impl Sprite {
-    pub fn to_expanded(&self) -> ExpandedSprite {
+    pub fn into_expanded(self) -> ExpandedSprite {
         match self {
-            Self::Path(path) => path.to_path_buf().into(),
-            Self::Expanded(sprite) => sprite.clone(),
+            Self::Path(path) => path.into(),
+            Self::Expanded(sprite) => sprite,
         }
     }
 }

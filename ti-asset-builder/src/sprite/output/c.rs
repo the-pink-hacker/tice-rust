@@ -2,9 +2,9 @@ use std::path::Path;
 
 use tokio::io::AsyncWriteExt;
 
-use crate::sprite::{Color8, RawSprite};
+use crate::sprite::RawSprite;
 
-fn rgb_line_to_string_c(rgb: &[Color8]) -> String {
+fn rgb_line_to_string_c(rgb: &[u8]) -> String {
     rgb.iter()
         .map(|pixel| format!("0x{:X}", u8::from(*pixel)))
         .collect::<Vec<_>>()

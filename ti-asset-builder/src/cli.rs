@@ -27,15 +27,32 @@ pub struct CliSpriteCommand {
     pub output: PathBuf,
     #[clap(short = 't', long)]
     pub output_type: OutputType,
+    #[clap(short, long)]
+    pub palette: Option<PathBuf>,
+}
+
+#[derive(Debug, Args, Clone)]
+pub struct CliPaletteCommand {
+    /// Where the palette file is written to
+    #[clap(short, long)]
+    pub output: PathBuf,
+    /// The folder where the c header and file is output
+    #[clap(short = 'c', long)]
+    pub output_c_folder: PathBuf,
+    /// The sprite definition to generate the palette from
+    #[clap(short, long, num_args = 1.., required = true)]
+    pub definitions: Vec<PathBuf>,
 }
 
 #[derive(Debug, Subcommand, Clone)]
 #[command(rename_all = "lower")]
 pub enum CliSubcommand {
-    /// Build a fontpack definition file
+    /// Build a fontpack definition
     FontPack(CliFontPackCommand),
-    /// Build a sprite definition file
+    /// Build a sprite definition
     Sprite(CliSpriteCommand),
+    /// Generate a palette definition file
+    Palette(CliPaletteCommand),
 }
 
 #[derive(Debug, Parser, Clone)]

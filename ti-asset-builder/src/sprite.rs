@@ -7,37 +7,83 @@ use crate::{
     cli::CliSpriteCommand,
     image::{Color8, RawImage},
     output::OutputType,
+    palette::{PaletteDefinition, PaletteLookup},
     path::PathExt,
-    sprite::definition::{Sprite, SpriteTableDefinition},
+    sprite::definition::{Sprite, SpritePalette, SpriteTableDefinition},
 };
 
-mod definition;
+pub mod definition;
 mod output;
 
-async fn load_sprite_definition(path: &Path) -> anyhow::Result<SpriteTableDefinition> {
-    let raw = tokio::fs::read_to_string(path)
-        .await
-        .with_context(|| format!("Failed to read sprite table at {path:?}"))?;
-    let definition = toml::from_str(&raw)
-        .with_context(|| format!("Failed to parse sprite table at {path:?}"))?;
+impl SpriteTableDefinition {
+    pub async fn load(path: &Path) -> anyhow::Result<Self> {
+        let raw = tokio::fs::read_to_string(path)
+            .await
+            .with_context(|| format!("Failed to read sprite table at {path:?}"))?;
+        toml::from_str(&raw).with_context(|| format!("Failed to parse sprite table at {path:?}"))
+    }
 
-    Ok(definition)
+    pub async fn load_images(
+        self,
+        sprite_table_path: &Path,
+    ) -> anyhow::Result<(Vec<RawImage>, SpritePalette)> {
+        let images = futures::stream::iter(
+            self.sprites
+                .into_values()
+                .map(|sprite| RawImage::load_from_sprite(sprite_table_path, sprite)),
+        )
+        .buffered(std::thread::available_parallelism()?.into())
+        .try_collect()
+        .await?;
+
+        Ok((images, self.palette))
+    }
+
+    async fn load_sprites(
+        self,
+        sprite_table_path: &Path,
+        palette_lookup: Option<PaletteLookup>,
+    ) -> anyhow::Result<Vec<RawSprite>> {
+        futures::stream::iter(self.sprites.into_iter().map(|(name, sprite)| async {
+            RawImage::load_from_sprite(sprite_table_path, sprite)
+                .await?
+                .into_raw_sprite(name, palette_lookup.as_ref())
+        }))
+        .buffered(std::thread::available_parallelism()?.into())
+        .try_collect()
+        .await
+    }
 }
 
 impl RawImage {
-    async fn load_sprite(
-        sprite_table_path: &Path,
-        name: String,
-        sprite: Sprite,
-    ) -> anyhow::Result<RawSprite> {
-        let expanded_sprite = sprite.to_expanded();
+    async fn load_from_sprite(sprite_table_path: &Path, sprite: Sprite) -> anyhow::Result<Self> {
+        let expanded_sprite = sprite.into_expanded();
         let image_path = sprite_table_path.relative_parent_suffix(&expanded_sprite.path, ".png")?;
-        let (width, height, pixels_raw) = Self::load(&image_path)
-            .await?
-            .rotate(expanded_sprite.rotation)
-            .into_rgb24();
+        let mut image = Self::load(&image_path)
+            .await
+            .with_context(|| format!("Failed to load sprite: {image_path:?}"))?;
 
-        let pixels = pixels_raw.into_iter().map(Color8::from).collect();
+        image.rotate(expanded_sprite.rotation);
+
+        Ok(image)
+    }
+
+    fn into_raw_sprite(
+        self,
+        name: String,
+        palette_lookup: Option<&PaletteLookup>,
+    ) -> anyhow::Result<RawSprite> {
+        let (width, height, pixels_raw) = self.into_rgba24();
+
+        let pixels_iter = pixels_raw.into_iter();
+
+        let pixels = if let Some(palette_lookup) = palette_lookup {
+            pixels_iter
+                .map(|pixel| palette_lookup.lookup(pixel))
+                .try_collect()?
+        } else {
+            pixels_iter.map(Color8::from).map(u8::from).collect()
+        };
 
         Ok(RawSprite {
             name,
@@ -48,23 +94,10 @@ impl RawImage {
     }
 }
 
-impl SpriteTableDefinition {
-    async fn load_sprites(self, sprite_table_path: &Path) -> anyhow::Result<Vec<RawSprite>> {
-        futures::stream::iter(
-            self.sprites
-                .into_iter()
-                .map(|(name, sprite)| RawImage::load_sprite(sprite_table_path, name, sprite)),
-        )
-        .buffered(std::thread::available_parallelism()?.into())
-        .try_collect()
-        .await
-    }
-}
-
 #[derive(Debug)]
 struct RawSprite {
     name: String,
-    pixels: Vec<Color8>,
+    pixels: Vec<u8>,
     width: u8,
     height: u8,
 }
@@ -85,9 +118,15 @@ pub async fn build(command: CliSpriteCommand) -> anyhow::Result<()> {
         .to_str()
         .with_context(|| format!("Invalid definition name: {definition_path:?}"))?;
 
-    let sprites = load_sprite_definition(&definition_path)
+    let palette_lookup = if let Some(palette) = command.palette {
+        Some(PaletteDefinition::load(&palette).await?.get_lookup()?)
+    } else {
+        None
+    };
+
+    let sprites = SpriteTableDefinition::load(&definition_path)
         .await?
-        .load_sprites(&definition_path)
+        .load_sprites(&definition_path, palette_lookup)
         .await?;
 
     match command.output_type {
