@@ -1,4 +1,7 @@
-use std::{collections::BTreeMap, path::PathBuf};
+use std::{
+    collections::{BTreeMap, HashMap},
+    path::PathBuf,
+};
 
 use serde::Deserialize;
 use serde_valid::Validate;
@@ -7,7 +10,7 @@ use crate::image::ColorRGBA32;
 
 #[derive(Debug, Default, Deserialize, Clone)]
 pub struct SpritePalette {
-    pub reserve: Vec<ColorRGBA32>,
+    pub reserve: HashMap<String, ColorRGBA32>,
 }
 
 #[derive(Debug, Default, Deserialize, Clone)]

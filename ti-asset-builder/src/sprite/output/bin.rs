@@ -22,7 +22,7 @@ pub async fn generate_sprite_file_bin(
             SerialSectorBuilder::default()
                 .u8(sprite.width)
                 .u8(sprite.height)
-                .bytes(sprite.pixels.into_iter()),
+                .bytes(sprite.pixels),
         );
     }
 

@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeSet, HashMap},
+    collections::{BTreeMap, BTreeSet, HashMap},
     path::Path,
 };
 
@@ -17,16 +17,21 @@ use crate::{
 #[derive(Debug)]
 pub struct PaletteLookup {
     colors: HashMap<ColorRGB1555, u8>,
-    reserve: HashMap<ColorRGBA32, u8>,
+    reserve: HashMap<ColorRGBA32, (String, u8)>,
 }
 
 impl PaletteLookup {
     pub fn lookup(&self, color: ColorRGBA32) -> anyhow::Result<u8> {
-        self.reserve
-            .get(&color)
-            .or_else(|| self.colors.get(&color.into()))
-            .cloned()
-            .with_context(|| format!("Color is missing from palette: {color:#?}"))
+        if color.is_transparent() {
+            Ok(0)
+        } else {
+            self.reserve
+                .get(&color)
+                .map(|(_, value)| value)
+                .or_else(|| self.colors.get(&color.into()))
+                .cloned()
+                .with_context(|| format!("Color is missing from palette: {color:#?}"))
+        }
     }
 }
 
@@ -35,7 +40,7 @@ impl PaletteLookup {
 pub struct PaletteDefinition {
     #[serde(with = "base64")]
     colors: Vec<ColorRGB1555>,
-    reserve: Vec<ColorRGBA32>,
+    reserve: BTreeMap<String, ColorRGBA32>,
 }
 
 // https://users.rust-lang.org/t/serialize-a-vec-u8-to-json-as-base64/57781/2
@@ -45,7 +50,7 @@ mod base64 {
 
     use crate::image::ColorRGB1555;
 
-    pub fn serialize<S: Serializer>(v: &Vec<ColorRGB1555>, s: S) -> Result<S::Ok, S::Error> {
+    pub fn serialize<S: Serializer>(v: &[ColorRGB1555], s: S) -> Result<S::Ok, S::Error> {
         let bytes = v
             .iter()
             .cloned()
@@ -76,10 +81,10 @@ mod base64 {
 }
 
 impl PaletteDefinition {
-    fn new(colors: BTreeSet<ColorRGB1555>, reserve: BTreeSet<ColorRGBA32>) -> Self {
+    fn new(colors: BTreeSet<ColorRGB1555>, reserve: BTreeMap<String, ColorRGBA32>) -> Self {
         Self {
             colors: colors.into_iter().collect(),
-            reserve: reserve.into_iter().collect(),
+            reserve,
         }
     }
 
@@ -115,7 +120,12 @@ impl PaletteDefinition {
         u8::try_from(count).map_err(|_| palette_full_error(count))?;
 
         // 1 because 0 is reserved for transparent
-        let reserve = self.reserve.into_iter().zip(1..).collect();
+        let reserve = self
+            .reserve
+            .into_iter()
+            .zip(1..)
+            .map(|((name, color), index)| (color, (name, index)))
+            .collect();
         let colors = self
             .colors
             .into_iter()
@@ -145,26 +155,24 @@ pub async fn build(command: CliPaletteCommand) -> anyhow::Result<()> {
     .await?;
 
     let mut colors = BTreeSet::new();
-    let mut reserve = BTreeSet::new();
+    let mut reserve = BTreeMap::new();
 
     // Populate reserve table
     definitions.iter().for_each(|(_, definition)| {
-        definition
-            .palette
-            .reserve
-            .iter()
-            .cloned()
-            .for_each(|color| {
-                reserve.insert(color);
-            })
+        definition.palette.reserve.iter().for_each(|(name, color)| {
+            reserve.insert(name.clone(), *color);
+        })
     });
 
     for (definition_path, definition) in definitions {
         info!("Adding sprites at: {definition_path:?}");
         let (images, palette) = definition.load_images(&definition_path).await?;
+
+        let reserve = palette.reserve.into_values().collect();
+
         images
             .iter()
-            .for_each(|i| i.collect_colors(&mut colors, &palette));
+            .for_each(|i| i.collect_colors(&mut colors, &reserve));
 
         let count = colors.len();
 

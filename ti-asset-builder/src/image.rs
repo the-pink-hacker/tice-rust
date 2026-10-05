@@ -1,13 +1,12 @@
-use std::{collections::BTreeSet, path::Path};
+use std::{
+    collections::{BTreeSet, HashSet},
+    path::Path,
+};
 
 use anyhow::Context;
 use serde::{Deserialize, Serialize};
 
-use crate::sprite::definition::SpritePalette;
-
-#[derive(
-    Debug, Default, Deserialize, Serialize, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord,
-)]
+#[derive(Debug, Default, Deserialize, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[serde(transparent)]
 pub struct ColorRGB1555(u16);
 
@@ -50,6 +49,7 @@ pub struct ColorRGBA32 {
     pub green: u8,
     pub blue: u8,
     #[serde(default = "ColorRGBA32::default_transparency")]
+    #[serde(skip_serializing_if = "ColorRGBA32::is_alpha_default")]
     pub alpha: u8,
 }
 
@@ -60,6 +60,10 @@ impl ColorRGBA32 {
 
     fn default_transparency() -> u8 {
         u8::MAX
+    }
+
+    fn is_alpha_default(alpha: &u8) -> bool {
+        *alpha == u8::MAX
     }
 }
 
@@ -170,14 +174,19 @@ impl RawImage {
         }
     }
 
-    pub fn collect_colors(&self, colors: &mut BTreeSet<ColorRGB1555>, palette: &SpritePalette) {
+    pub fn collect_colors(
+        &self,
+        colors: &mut BTreeSet<ColorRGB1555>,
+        reserve_palette: &HashSet<ColorRGBA32>,
+    ) {
         self.image
             .pixels()
             .map(|pixel| ColorRGBA32::from(pixel.0))
             .filter(|color| !color.is_transparent())
-            .filter(|color| !palette.reserve.contains(color))
+            .filter(|color| !reserve_palette.contains(color))
+            .map(ColorRGB1555::from)
             .for_each(|color| {
-                colors.insert(ColorRGB1555::from(color));
+                colors.insert(color);
             });
     }
 
