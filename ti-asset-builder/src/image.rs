@@ -54,15 +54,15 @@ pub struct ColorRGBA32 {
 }
 
 impl ColorRGBA32 {
-    pub fn is_transparent(&self) -> bool {
+    pub const fn is_transparent(&self) -> bool {
         self.alpha == 0
     }
 
-    fn default_transparency() -> u8 {
+    const fn default_transparency() -> u8 {
         u8::MAX
     }
 
-    fn is_alpha_default(alpha: &u8) -> bool {
+    const fn is_alpha_default(alpha: &u8) -> bool {
         *alpha == u8::MAX
     }
 }

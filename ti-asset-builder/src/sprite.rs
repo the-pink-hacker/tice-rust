@@ -9,10 +9,14 @@ use crate::{
     output::OutputType,
     palette::{PaletteDefinition, PaletteLookup},
     path::PathExt,
-    sprite::definition::{Sprite, SpriteTableDefinition},
+    sprite::{
+        definition::{ExpandedSprite, SpriteTableDefinition},
+        encode::SpriteEncoder,
+    },
 };
 
 pub mod definition;
+mod encode;
 mod output;
 
 impl SpriteTableDefinition {
@@ -24,11 +28,9 @@ impl SpriteTableDefinition {
     }
 
     pub async fn load_images(self, sprite_table_path: &Path) -> anyhow::Result<Vec<RawImage>> {
-        futures::stream::iter(
-            self.sprites
-                .into_values()
-                .map(|sprite| RawImage::load_from_sprite(sprite_table_path, sprite)),
-        )
+        futures::stream::iter(self.sprites.into_values().map(|sprite| async {
+            RawImage::load_from_sprite(sprite_table_path, &sprite.into_expanded()).await
+        }))
         .buffered(std::thread::available_parallelism()?.into())
         .try_collect()
         .await
@@ -40,9 +42,15 @@ impl SpriteTableDefinition {
         palette_lookup: Option<PaletteLookup>,
     ) -> anyhow::Result<Vec<RawSprite>> {
         futures::stream::iter(self.sprites.into_iter().map(|(name, sprite)| async {
-            RawImage::load_from_sprite(sprite_table_path, sprite)
+            let expanded_sprite = sprite.into_expanded();
+            let raw_sprite = RawImage::load_from_sprite(sprite_table_path, &expanded_sprite)
                 .await?
-                .into_raw_sprite(name, palette_lookup.as_ref())
+                .into_raw_sprite(name, palette_lookup.as_ref())?;
+
+            expanded_sprite
+                .encoding
+                .unwrap_or_else(|| self.encoding.clone())
+                .encode(raw_sprite)
         }))
         .buffered(std::thread::available_parallelism()?.into())
         .try_collect()
@@ -51,14 +59,16 @@ impl SpriteTableDefinition {
 }
 
 impl RawImage {
-    async fn load_from_sprite(sprite_table_path: &Path, sprite: Sprite) -> anyhow::Result<Self> {
-        let expanded_sprite = sprite.into_expanded();
-        let image_path = sprite_table_path.relative_parent_suffix(&expanded_sprite.path, ".png")?;
+    async fn load_from_sprite(
+        sprite_table_path: &Path,
+        sprite: &ExpandedSprite,
+    ) -> anyhow::Result<Self> {
+        let image_path = sprite_table_path.relative_parent_suffix(&sprite.path, ".png")?;
         let mut image = Self::load(&image_path)
             .await
             .with_context(|| format!("Failed to load sprite: {image_path:?}"))?;
 
-        image.rotate(expanded_sprite.rotation);
+        image.rotate(sprite.rotation);
 
         Ok(image)
     }
