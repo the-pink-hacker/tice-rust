@@ -25,7 +25,7 @@ impl SpriteEncoder for EncoderRunLength {
     fn encode(&self, mut sprite: RawSprite) -> anyhow::Result<RawSprite> {
         debug!("Encoding run length sprite: {}", sprite.name);
         let pixel_count = sprite.pixels.len();
-        let mut output = Vec::with_capacity(pixel_count * 2);
+        let mut output = Vec::with_capacity(pixel_count);
         sprite
             .pixels
             .chunks_exact(sprite.width as usize)
@@ -49,7 +49,7 @@ impl SpriteEncoder for EncoderRunLength {
                         let mut count = 1u8;
 
                         while line
-                            .next_if(|&pixel| pixel == current_pixel && count < RUN_LENGTH_MASK)
+                            .next_if(|&pixel| pixel == current_pixel && count < RUN_LENGTH_MASK - 1)
                             .is_some()
                         {
                             count += 1;
@@ -61,6 +61,8 @@ impl SpriteEncoder for EncoderRunLength {
                         output.push(current_pixel);
                     }
                 }
+
+                output.push(u8::MAX);
 
                 Ok::<_, anyhow::Error>(())
             })?;
