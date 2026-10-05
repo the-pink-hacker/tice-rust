@@ -107,7 +107,7 @@ impl PaletteDefinition {
 
         let file_stem = "palette";
 
-        let mut header_out = String::from("#include <stdint.h>\n\n");
+        let mut header_out = String::from("#pragma once\n\n#include <stdint.h>\n\n");
         let mut c_out = format!("#include \"{file_stem}.h\"\n\n");
 
         let count = self.get_color_count()?;
