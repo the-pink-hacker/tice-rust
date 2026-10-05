@@ -98,7 +98,7 @@ impl PaletteDefinition {
     }
 
     fn get_color_count(&self) -> anyhow::Result<u8> {
-        let count = self.reserve.len() + self.colors.len();
+        let count = self.reserve.len() + self.colors.len() + 1;
         u8::try_from(count).map_err(|_| palette_full_error(count))
     }
 
