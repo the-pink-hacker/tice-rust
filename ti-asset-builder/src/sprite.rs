@@ -9,7 +9,7 @@ use crate::{
     output::OutputType,
     palette::{PaletteDefinition, PaletteLookup},
     path::PathExt,
-    sprite::definition::{Sprite, SpritePalette, SpriteTableDefinition},
+    sprite::definition::{Sprite, SpriteTableDefinition},
 };
 
 pub mod definition;
@@ -23,20 +23,15 @@ impl SpriteTableDefinition {
         toml::from_str(&raw).with_context(|| format!("Failed to parse sprite table at {path:?}"))
     }
 
-    pub async fn load_images(
-        self,
-        sprite_table_path: &Path,
-    ) -> anyhow::Result<(Vec<RawImage>, SpritePalette)> {
-        let images = futures::stream::iter(
+    pub async fn load_images(self, sprite_table_path: &Path) -> anyhow::Result<Vec<RawImage>> {
+        futures::stream::iter(
             self.sprites
                 .into_values()
                 .map(|sprite| RawImage::load_from_sprite(sprite_table_path, sprite)),
         )
         .buffered(std::thread::available_parallelism()?.into())
         .try_collect()
-        .await?;
-
-        Ok((images, self.palette))
+        .await
     }
 
     async fn load_sprites(

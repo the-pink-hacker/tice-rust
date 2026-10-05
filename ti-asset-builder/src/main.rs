@@ -1,6 +1,7 @@
 #![feature(normalize_lexically)]
 #![feature(iterator_try_collect)]
 #![feature(vec_into_chunks)]
+#![feature(iter_intersperse)]
 
 mod cli;
 mod font;

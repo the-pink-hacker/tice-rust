@@ -97,12 +97,52 @@ impl PaletteDefinition {
             .with_context(|| format!("Failed to write palette definition: {path:?}"))
     }
 
-    async fn write_c_files(&self, folder: &Path) -> anyhow::Result<()> {
+    fn get_color_count(&self) -> anyhow::Result<u8> {
+        let count = self.reserve.len() + self.colors.len();
+        u8::try_from(count).map_err(|_| palette_full_error(count))
+    }
+
+    async fn write_c_files(self, folder: &Path) -> anyhow::Result<()> {
         tokio::fs::create_dir_all(folder).await?;
 
-        let count = self.colors.len();
-        let count = u8::try_from(count).map_err(|_| palette_full_error(count))?;
-        Ok(())
+        let file_stem = "palette";
+
+        let mut header_out = String::from("#include <stdint.h>\n\n");
+        let mut c_out = format!("#include \"{file_stem}.h\"\n\n");
+
+        let count = self.get_color_count()?;
+
+        header_out += &format!("#define PALETTE_COUNT {count}\n");
+        header_out += &format!("#define PALETTE_SIZE {}\n\n", count * 2);
+
+        for (name, i) in self.reserve.keys().zip(1u8..) {
+            header_out += &format!("#define PALETTE_RESERVE_{} {i}\n", name.to_uppercase());
+        }
+
+        header_out += &format!("extern const uint16_t PALETTE_TABLE[{count}];\n");
+        c_out += &format!("const uint16_t PALETTE_TABLE[{count}] = {{");
+
+        c_out += &[ColorRGB1555::default()]
+            .into_iter()
+            .chain(self.reserve.into_values().map(ColorRGB1555::from))
+            .chain(self.colors)
+            .map(u16::from)
+            .map(|x| format!("{x}"))
+            .intersperse(String::from(","))
+            .collect::<String>();
+
+        c_out += "};";
+
+        let c_path = folder.join(format!("{file_stem}.c"));
+        let header_path = folder.join(format!("{file_stem}.h"));
+
+        tokio::fs::write(&header_path, header_out)
+            .await
+            .with_context(|| format!("Failed to write c file: {header_path:?}"))?;
+
+        tokio::fs::write(&c_path, c_out)
+            .await
+            .with_context(|| format!("Failed to write c file: {c_path:?}"))
     }
 
     pub async fn load(path: &Path) -> anyhow::Result<Self> {
@@ -115,9 +155,11 @@ impl PaletteDefinition {
     }
 
     pub fn get_lookup(self) -> anyhow::Result<PaletteLookup> {
-        let reserve_count = self.reserve.len();
-        let count = self.colors.len() + reserve_count;
-        u8::try_from(count).map_err(|_| palette_full_error(count))?;
+        let colors = self
+            .colors
+            .into_iter()
+            .zip((self.reserve.len() as u8 + 1)..)
+            .collect();
 
         // 1 because 0 is reserved for transparent
         let reserve = self
@@ -125,11 +167,6 @@ impl PaletteDefinition {
             .into_iter()
             .zip(1..)
             .map(|((name, color), index)| (color, (name, index)))
-            .collect();
-        let colors = self
-            .colors
-            .into_iter()
-            .zip((reserve_count as u8 + 1)..)
             .collect();
 
         Ok(PaletteLookup { colors, reserve })
@@ -141,7 +178,7 @@ fn log_color_count(count: usize) {
 }
 
 fn palette_full_error(count: usize) -> anyhow::Error {
-    anyhow::anyhow!("Palette is full: {count} > 255")
+    anyhow::anyhow!("Palette is full: {count} > 256")
 }
 
 pub async fn build(command: CliPaletteCommand) -> anyhow::Result<()> {
@@ -164,15 +201,16 @@ pub async fn build(command: CliPaletteCommand) -> anyhow::Result<()> {
         })
     });
 
+    let reserve_set = reserve.values().cloned().collect();
+
     for (definition_path, definition) in definitions {
         info!("Adding sprites at: {definition_path:?}");
-        let (images, palette) = definition.load_images(&definition_path).await?;
 
-        let reserve = palette.reserve.into_values().collect();
-
-        images
+        definition
+            .load_images(&definition_path)
+            .await?
             .iter()
-            .for_each(|i| i.collect_colors(&mut colors, &reserve));
+            .for_each(|i| i.collect_colors(&mut colors, &reserve_set));
 
         let count = colors.len();
 
@@ -183,7 +221,7 @@ pub async fn build(command: CliPaletteCommand) -> anyhow::Result<()> {
 
     info!("Palette is completed.");
 
-    log_color_count(colors.len());
+    log_color_count(colors.len() + reserve.len() + 1);
 
     let definition = PaletteDefinition::new(colors, reserve);
 
