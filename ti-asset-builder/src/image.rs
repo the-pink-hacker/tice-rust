@@ -22,8 +22,8 @@ impl From<ColorRGBA32> for ColorRGB1555 {
                 alpha: _,
             } = value;
 
-            let red = ((red / 8) as u16) << 1;
-            let green = ((green / 8) as u16) << 6;
+            let red = ((red / 8) as u16) << 6;
+            let green = ((green / 8) as u16) << 1;
             let blue = ((blue / 8) as u16) << 11;
 
             Self(red | green | blue)
