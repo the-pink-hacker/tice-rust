@@ -41,8 +41,18 @@ pub struct ExpandedSprite {
     #[validate(maximum = 360.0)]
     #[serde(default)]
     pub rotation: f32,
+    #[serde(default = "ExpandedSprite::default_scale")]
+    pub scale_x: f32,
+    #[serde(default = "ExpandedSprite::default_scale")]
+    pub scale_y: f32,
     #[serde(default)]
     pub encoding: Option<SpriteEncoding>,
+}
+
+impl ExpandedSprite {
+    const fn default_scale() -> f32 {
+        1.0
+    }
 }
 
 impl From<PathBuf> for ExpandedSprite {
@@ -51,6 +61,8 @@ impl From<PathBuf> for ExpandedSprite {
             path: value,
             rotation: 0.0,
             encoding: None,
+            scale_x: Self::default_scale(),
+            scale_y: Self::default_scale(),
         }
     }
 }

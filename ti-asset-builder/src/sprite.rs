@@ -69,6 +69,7 @@ impl RawImage {
             .with_context(|| format!("Failed to load sprite: {image_path:?}"))?;
 
         image.rotate(sprite.rotation);
+        image.scale(sprite.scale_x, sprite.scale_y);
 
         Ok(image)
     }

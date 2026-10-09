@@ -4,7 +4,10 @@ use std::{
 };
 
 use anyhow::Context;
+use imageproc::geometric_transformations::Border;
 use serde::{Deserialize, Serialize};
+
+const EXTEND: Border<image::Rgba<u8>> = Border::Constant(image::Rgba([0, 0, 0, 0]));
 
 #[derive(Debug, Default, Deserialize, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[serde(transparent)]
@@ -167,11 +170,26 @@ impl RawImage {
                         &self.image,
                         degrees.to_radians(),
                         img::Interpolation::Bilinear,
-                        img::Border::Constant(image::Rgba(Default::default())),
+                        EXTEND,
                     );
                 }
             }
         }
+    }
+
+    pub fn scale(&mut self, x: f32, y: f32) {
+        use imageproc::geometric_transformations as img;
+
+        if x == 1.0 && y == 1.0 {
+            return;
+        }
+
+        self.image = img::warp(
+            &self.image,
+            img::Projection::scale(x, y),
+            img::Interpolation::Nearest,
+            EXTEND,
+        );
     }
 
     pub fn collect_colors(
