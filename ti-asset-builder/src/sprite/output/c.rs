@@ -26,11 +26,16 @@ fn generate_c_sprite_pixels_rgb(output: &mut String, sprite: &RawSprite) {
 pub async fn generate_sprite_file_c(
     sprites: Vec<RawSprite>,
     name: &str,
+    lookup_table: bool,
     out_path: &Path,
 ) -> anyhow::Result<()> {
     let mut header_output = "#pragma once\n\n#include <graphx.h>\n".to_string();
     let header_name = format!("{}.h", name);
     let mut c_output = format!("#include \"{header_name}\"\n");
+
+    if lookup_table {
+        unimplemented!("Lookup table not supported for C output.");
+    }
 
     for sprite in sprites {
         let name = &sprite.name;

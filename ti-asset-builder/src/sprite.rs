@@ -10,7 +10,7 @@ use crate::{
     palette::{PaletteDefinition, PaletteLookup},
     path::PathExt,
     sprite::{
-        definition::{ExpandedSprite, SpriteTableDefinition},
+        definition::{ExpandedSprite, SpriteEncoding, SpriteTableDefinition},
         encode::SpriteEncoder,
     },
 };
@@ -40,8 +40,8 @@ impl SpriteTableDefinition {
         self,
         sprite_table_path: &Path,
         palette_lookup: Option<PaletteLookup>,
-    ) -> anyhow::Result<Vec<RawSprite>> {
-        futures::stream::iter(self.sprites.into_iter().map(|(name, sprite)| async {
+    ) -> anyhow::Result<(Vec<RawSprite>, SpriteEncoding)> {
+        let sprites = futures::stream::iter(self.sprites.into_iter().map(|(name, sprite)| async {
             let expanded_sprite = sprite.into_expanded();
             let raw_sprite = RawImage::load_from_sprite(sprite_table_path, &expanded_sprite)
                 .await?
@@ -54,7 +54,9 @@ impl SpriteTableDefinition {
         }))
         .buffered(std::thread::available_parallelism()?.into())
         .try_collect()
-        .await
+        .await?;
+
+        Ok((sprites, self.encoding))
     }
 }
 
@@ -130,16 +132,25 @@ pub async fn build(command: CliSpriteCommand) -> anyhow::Result<()> {
         None
     };
 
-    let sprites = SpriteTableDefinition::load(&definition_path)
+    let (sprites, encoding) = SpriteTableDefinition::load(&definition_path)
         .await?
         .load_sprites(&definition_path, palette_lookup)
         .await?;
 
     match command.output_type {
         OutputType::Binary => {
-            output::bin::generate_sprite_file_bin(sprites, name, &command.output).await?
+            output::bin::generate_sprite_file_bin(
+                sprites,
+                encoding.lookup_table,
+                name,
+                &command.output,
+            )
+            .await?
         }
-        OutputType::C => output::c::generate_sprite_file_c(sprites, name, &command.output).await?,
+        OutputType::C => {
+            output::c::generate_sprite_file_c(sprites, name, encoding.lookup_table, &command.output)
+                .await?
+        }
         OutputType::Assembly => unimplemented!(),
     }
 

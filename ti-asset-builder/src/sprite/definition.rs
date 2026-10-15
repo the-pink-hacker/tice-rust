@@ -18,8 +18,10 @@ pub enum SpriteEncodingFormat {
 }
 
 #[derive(Debug, Default, Deserialize, Clone)]
+#[serde(default)]
 pub struct SpriteEncoding {
     pub format: SpriteEncodingFormat,
+    pub lookup_table: bool,
 }
 
 #[derive(Debug, Default, Deserialize, Clone)]
