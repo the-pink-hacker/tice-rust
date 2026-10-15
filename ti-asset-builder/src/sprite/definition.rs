@@ -14,6 +14,7 @@ pub enum SpriteEncodingFormat {
     #[default]
     LibC,
     RunLength,
+    RunLengthTransparent,
 }
 
 #[derive(Debug, Default, Deserialize, Clone)]

@@ -78,11 +78,74 @@ impl SpriteEncoder for EncoderRunLength {
     }
 }
 
+enum RLETState {
+    TransparentRun,
+    OpaqueRun,
+}
+
+pub struct EncoderRunLengthTransparent;
+
+impl SpriteEncoder for EncoderRunLengthTransparent {
+    fn encode(&self, mut sprite: RawSprite) -> anyhow::Result<RawSprite> {
+        debug!("Encoding run length sprite: {}", sprite.name);
+        let pixel_count = sprite.pixels.len();
+        // Worst case size
+        let mut output = Vec::with_capacity(pixel_count * 3);
+        sprite
+            .pixels
+            .chunks_exact(sprite.width as usize)
+            .for_each(|line| {
+                let mut state = RLETState::TransparentRun;
+                let mut line_iter = line.iter().peekable();
+
+                while line_iter.peek().is_some() {
+                    match state {
+                        RLETState::TransparentRun => {
+                            let mut run = 0;
+
+                            while line_iter.next_if_eq(&&0).is_some() {
+                                run += 1;
+                            }
+
+                            output.push(run);
+                            state = RLETState::OpaqueRun;
+                        }
+                        RLETState::OpaqueRun => {
+                            let mut run = 0;
+                            let mut pixels = Vec::new();
+
+                            while let Some(&pixel) = line_iter.next_if(|&&pixel| pixel != 0) {
+                                run += 1;
+                                pixels.push(pixel);
+                            }
+
+                            state = RLETState::TransparentRun;
+                            output.push(run);
+                            output.append(&mut pixels);
+                        }
+                    }
+                }
+            });
+
+        sprite.pixels = output;
+
+        let length = sprite.pixels.len();
+        let percent = (length as f32 / pixel_count as f32) * 100.0;
+
+        debug!("Sprite size: {length}/{pixel_count} ({percent})");
+
+        Ok(sprite)
+    }
+}
+
 impl SpriteEncoder for SpriteEncoding {
     fn encode(&self, sprite: RawSprite) -> anyhow::Result<RawSprite> {
         match self.format {
             SpriteEncodingFormat::LibC => EncoderLibC.encode(sprite),
             SpriteEncodingFormat::RunLength => EncoderRunLength.encode(sprite),
+            SpriteEncodingFormat::RunLengthTransparent => {
+                EncoderRunLengthTransparent.encode(sprite)
+            }
         }
     }
 }
