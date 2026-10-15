@@ -169,7 +169,7 @@ impl RawImage {
                     self.image = img::rotate_about_center(
                         &self.image,
                         degrees.to_radians(),
-                        img::Interpolation::Bilinear,
+                        img::Interpolation::Nearest,
                         EXTEND,
                     );
                 }
